@@ -20,6 +20,7 @@ import {
 import {
   evaluateBuild,
   evaluateCpuMotherboardCompatibility,
+  evaluateMemoryMotherboardCompatibility,
 } from "./evaluate";
 
 const catalog = {
@@ -87,6 +88,115 @@ describe("evaluateCpuMotherboardCompatibility", () => {
   });
 });
 
+describe("evaluateMemoryMotherboardCompatibility", () => {
+  it("returns compatible for a DDR4 motherboard and DDR4 RAM", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(createEmptyBuild(), "motherboard-asus-prime-b550m-a"),
+      "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns compatible for a DDR5 motherboard and DDR5 RAM", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns incompatible for a DDR4 motherboard and DDR5 RAM", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(createEmptyBuild(), "motherboard-asus-prime-b550m-a"),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "MEMORY_TYPE_MISMATCH",
+        memoryType: "DDR5",
+        motherboardMemoryType: "DDR4",
+      },
+    });
+  });
+
+  it("returns incompatible for a DDR5 motherboard and DDR4 RAM", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "MEMORY_TYPE_MISMATCH",
+        memoryType: "DDR4",
+        motherboardMemoryType: "DDR5",
+      },
+    });
+  });
+
+  it("returns unknown when the motherboard is absent", () => {
+    const build = selectMemoryKit(
+      createEmptyBuild(),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when RAM is absent", () => {
+    const build = selectMotherboard(
+      createEmptyBuild(),
+      "motherboard-msi-b650-tomahawk-wifi",
+    );
+
+    expect(evaluateMemoryMotherboardCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("does not mutate the original build", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+    const before = { ...build };
+
+    evaluateMemoryMotherboardCompatibility(build, catalog);
+
+    expect(build).toEqual(before);
+  });
+
+  it("does not mutate the catalog", () => {
+    const before = {
+      motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
+      memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
+    };
+
+    evaluateMemoryMotherboardCompatibility(createEmptyBuild(), catalog);
+
+    expect({
+      motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
+      memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
+    }).toEqual(before);
+  });
+});
+
 describe("evaluateBuild", () => {
   it("evaluates an empty build", () => {
     expect(evaluateBuild(createEmptyBuild(), catalog)).toEqual({
@@ -133,7 +243,7 @@ describe("evaluateBuild", () => {
 
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
-      compatibility: "compatible",
+      compatibility: "unknown",
       missingComponents: ["gpu", "memoryKit"],
       issues: [],
     });
@@ -170,8 +280,42 @@ describe("evaluateBuild", () => {
 
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
-      compatibility: "compatible",
+      compatibility: "unknown",
       missingComponents: ["memoryKit"],
+    });
+  });
+
+  it("evaluates motherboard and RAM compatibility as unknown when CPU is absent", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateBuild(build, catalog)).toMatchObject({
+      completion: "partial",
+      compatibility: "unknown",
+      missingComponents: ["cpu", "gpu"],
+      issues: [],
+    });
+  });
+
+  it("evaluates CPU motherboard and RAM compatibility without GPU as compatible", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateBuild(build, catalog)).toMatchObject({
+      completion: "partial",
+      compatibility: "compatible",
+      missingComponents: ["gpu"],
+      issues: [],
     });
   });
 
@@ -216,6 +360,102 @@ describe("evaluateBuild", () => {
     );
   });
 
+  it("keeps incompatible when CPU motherboard fails and RAM motherboard passes", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-asus-prime-b550m-a",
+      ),
+      "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
+    );
+
+    expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+      ["cpu-motherboard-socket-mismatch"],
+    );
+  });
+
+  it("keeps incompatible when CPU motherboard passes and RAM motherboard fails", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
+    );
+
+    expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+      ["memory-motherboard-type-mismatch"],
+    );
+  });
+
+  it("keeps incompatible when both known compatibility checks fail", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-asus-prime-b550m-a",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
+  });
+
+  it("reports both incompatibilities as issues", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-asus-prime-b550m-a",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateBuild(build, catalog).issues).toEqual([
+      {
+        code: "cpu-motherboard-socket-mismatch",
+        severity: "error",
+        message: "La CPU utiliza AM5 y la motherboard utiliza AM4.",
+      },
+      {
+        code: "memory-motherboard-type-mismatch",
+        severity: "error",
+        message: "La RAM utiliza DDR5 y la motherboard utiliza DDR4.",
+      },
+    ]);
+  });
+
+  it("reports issues in deterministic compatibility-check order", () => {
+    const build = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-asus-prime-b550m-a",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+
+    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+      [
+        "cpu-motherboard-socket-mismatch",
+        "memory-motherboard-type-mismatch",
+      ],
+    );
+  });
+
+  it("does not change compatibility when only GPU changes", () => {
+    const baseBuild = selectMemoryKit(
+      selectMotherboard(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    );
+    const withGpu = selectGpu(baseBuild, "gpu-asus-prime-rtx-5070-oc");
+
+    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(withGpu, catalog).compatibility).toBe("compatible");
+  });
+
   it("does not mutate the original build", () => {
     const build = selectMotherboard(
       selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
@@ -257,8 +497,8 @@ describe("evaluateBuild", () => {
       "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
     );
 
-    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
-    expect(evaluateBuild(withGpu, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("unknown");
+    expect(evaluateBuild(withGpu, catalog).compatibility).toBe("unknown");
     expect(evaluateBuild(withMemory, catalog).compatibility).toBe("compatible");
   });
 
@@ -269,6 +509,21 @@ describe("evaluateBuild", () => {
     );
 
     expect(evaluateSource).not.toContain("socket ===");
+    expect(evaluateBuild).toBeTypeOf("function");
+  });
+
+  it("keeps memory type comparison centralized in the compatibility module", () => {
+    const evaluateSource = readFileSync(
+      join(process.cwd(), "src/modules/builds/evaluate.ts"),
+      "utf8",
+    );
+    const clientSource = readFileSync(
+      join(process.cwd(), "src/app/_components/pc-builder-client.tsx"),
+      "utf8",
+    );
+
+    expect(evaluateSource).not.toContain("memoryType ===");
+    expect(clientSource).not.toContain("memoryType ===");
     expect(evaluateBuild).toBeTypeOf("function");
   });
 });

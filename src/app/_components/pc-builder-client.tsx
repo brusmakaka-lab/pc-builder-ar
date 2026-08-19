@@ -369,6 +369,6 @@ function getCompatibilityTone(compatibility: BuildCompatibilityStatus) {
     className: "border-y border-zinc-200 px-4 py-4 text-zinc-700",
     title: "Compatibilidad desconocida",
     message:
-      "Selecciona CPU y motherboard para evaluar la compatibilidad conocida.",
+      "Selecciona los componentes necesarios para evaluar las compatibilidades conocidas.",
   };
 }

@@ -34,8 +34,21 @@ La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son re
 
 ## Compatibilidad
 
-Una build puede conservar selecciones incompatibles. La compatibilidad CPU/motherboard se evalua usando la regla existente de `src/modules/compatibility/cpu-motherboard.ts`. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
+Una build puede conservar selecciones incompatibles. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
+
+La evaluacion conoce dos reglas:
+
+- CPU/motherboard: `cpu.socket` debe coincidir con `motherboard.socket`.
+- RAM/motherboard: `memoryKit.memoryType` debe coincidir con `motherboard.memoryType`.
+
+Las reglas viven en `src/modules/compatibility/` y `evaluateBuild` solo las orquesta contra los IDs seleccionados. La UI consume `BuildEvaluation`; no decide compatibilidad por su cuenta.
+
+La precedencia del estado global es:
+
+- `incompatible` si al menos una regla evaluable falla.
+- `unknown` si no hay fallas pero falta algun componente necesario para completar las reglas conocidas.
+- `compatible` si todas las reglas conocidas pueden evaluarse y pasan.
 
 ## Fuera de scope
 
-No hay persistencia, builds guardadas, precios, tiendas, compatibilidad de GPU/RAM, fuente, gabinete, cooling, benchmarks ni recomendaciones.
+No hay persistencia, builds guardadas, precios, tiendas, compatibilidad de GPU con otros componentes, fuente, gabinete, cooling, benchmarks ni recomendaciones.
