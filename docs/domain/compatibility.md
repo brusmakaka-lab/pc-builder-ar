@@ -52,4 +52,6 @@ Si los tipos de memoria coinciden, el resultado es compatible. Si no coinciden, 
 
 ## Fuera de scope
 
-No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, gabinete, GPU, fuente, dimensiones fisicas ni consumo total. Esas reglas se agregaran cuando el flujo lo requiera.
+No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, gabinete, GPU, fuente, dimensiones fisicas ni consumo total. En particular, GPU/motherboard no se evalua todavia porque el catalogo no representa interfaz de GPU ni slot de expansion de motherboard.
+
+La generacion PCIe por si sola no es una regla de incompatibilidad estructural: diferencias de generacion pueden afectar ancho de banda o rendimiento, pero no deben reportarse como error si la interfaz sigue siendo retrocompatible.

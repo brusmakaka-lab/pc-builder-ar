@@ -49,6 +49,14 @@ La precedencia del estado global es:
 - `unknown` si no hay fallas pero falta algun componente necesario para completar las reglas conocidas.
 - `compatible` si todas las reglas conocidas pueden evaluarse y pasan.
 
+## GPU y motherboard
+
+La compatibilidad estructural GPU/motherboard todavia no se evalua porque el catalogo actual no modela la interfaz de conexion de la GPU ni el slot de expansion de la motherboard.
+
+El dato minimo faltante es un concepto tipado de conector/slot estructural, por ejemplo `PCIe x16`, en ambos componentes. Con el catalogo actual, agregar ese dato a todos los fixtures conocidos produciria solo combinaciones compatibles y un check que siempre devuelve compatible, sin valor de dominio.
+
+La generacion PCIe no debe tratarse como incompatibilidad por defecto: una diferencia como PCIe 3.0 contra PCIe 4.0 pertenece a capacidad, ancho de banda o rendimiento, no a compatibilidad estructural, mientras exista retrocompatibilidad.
+
 ## Fuera de scope
 
-No hay persistencia, builds guardadas, precios, tiendas, compatibilidad de GPU con otros componentes, fuente, gabinete, cooling, benchmarks ni recomendaciones.
+No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, compatibilidad de GPU con otros componentes, fuente, gabinete, cooling, benchmarks ni recomendaciones.
