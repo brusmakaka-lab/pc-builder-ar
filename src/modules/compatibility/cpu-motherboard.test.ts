@@ -45,9 +45,39 @@ describe("checkCpuMotherboardCompatibility", () => {
       }),
     ).toEqual({
       compatible: false,
-      reason: "socket_mismatch",
-      cpuSocket: "AM5",
-      motherboardSocket: "LGA1700",
+      reason: {
+        code: "SOCKET_MISMATCH",
+        cpuSocket: "AM5",
+        motherboardSocket: "LGA1700",
+      },
     });
+  });
+
+  it("depends on sockets instead of commercial names", () => {
+    expect(
+      checkCpuMotherboardCompatibility(
+        {
+          id: "cpu-renamed",
+          kind: "cpu",
+          brand: "AMD",
+          model: "Any CPU Name",
+          socket: "AM4",
+          cores: 8,
+          threads: 16,
+          tdpWatts: 65,
+        },
+        {
+          id: "motherboard-renamed",
+          kind: "motherboard",
+          brand: "MSI",
+          model: "Any Motherboard Name",
+          socket: "AM4",
+          chipset: "B550",
+          formFactor: "MicroATX",
+          memoryType: "DDR4",
+          memorySlots: 4,
+        },
+      ),
+    ).toEqual({ compatible: true });
   });
 });

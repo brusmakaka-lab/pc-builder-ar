@@ -5,11 +5,15 @@ import {
   getAllMotherboards,
 } from "@/modules/catalog/catalog";
 
+import { CpuMotherboardCompatibilitySelector } from "./_components/cpu-motherboard-compatibility-selector";
+
 export default function Home() {
+  const cpus = getAllCpus();
+  const motherboards = getAllMotherboards();
   const catalogSections = [
     {
       title: "CPU",
-      items: getAllCpus().map((cpu) => ({
+      items: cpus.map((cpu) => ({
         id: cpu.id,
         name: `${cpu.brand} ${cpu.model}`,
         details: `${cpu.socket} · ${cpu.cores}C/${cpu.threads}T · ${cpu.tdpWatts} W`,
@@ -17,7 +21,7 @@ export default function Home() {
     },
     {
       title: "Motherboards",
-      items: getAllMotherboards().map((motherboard) => ({
+      items: motherboards.map((motherboard) => ({
         id: motherboard.id,
         name: `${motherboard.brand} ${motherboard.model}`,
         details: `${motherboard.socket} · ${motherboard.chipset} · ${motherboard.memoryType} · ${motherboard.formFactor}`,
@@ -51,6 +55,11 @@ export default function Home() {
           PC Builder AR
         </h1>
       </header>
+
+      <CpuMotherboardCompatibilitySelector
+        cpus={cpus}
+        motherboards={motherboards}
+      />
 
       <section aria-labelledby="catalog-title" className="space-y-5">
         <h2

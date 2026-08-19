@@ -1,12 +1,16 @@
-import type { Cpu, Motherboard } from "@/modules/catalog/types";
+import type { Cpu, CpuSocket, Motherboard } from "@/modules/catalog/types";
+
+export type CpuMotherboardCompatibilityReason = {
+  code: "SOCKET_MISMATCH";
+  cpuSocket: CpuSocket;
+  motherboardSocket: CpuSocket;
+};
 
 export type CpuMotherboardCompatibility =
   | { compatible: true }
   | {
       compatible: false;
-      reason: "socket_mismatch";
-      cpuSocket: string;
-      motherboardSocket: string;
+      reason: CpuMotherboardCompatibilityReason;
     };
 
 export function checkCpuMotherboardCompatibility(
@@ -19,8 +23,10 @@ export function checkCpuMotherboardCompatibility(
 
   return {
     compatible: false,
-    reason: "socket_mismatch",
-    cpuSocket: cpu.socket,
-    motherboardSocket: motherboard.socket,
+    reason: {
+      code: "SOCKET_MISMATCH",
+      cpuSocket: cpu.socket,
+      motherboardSocket: motherboard.socket,
+    },
   };
 }
