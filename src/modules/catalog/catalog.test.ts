@@ -6,6 +6,7 @@ import {
   getAllGpus,
   getAllMemoryKits,
   getAllMotherboards,
+  getAllPsus,
 } from "./catalog";
 
 describe("catalog fixtures", () => {
@@ -20,6 +21,7 @@ describe("catalog fixtures", () => {
     expect(getAllMotherboards().length).toBeGreaterThan(0);
     expect(getAllGpus().length).toBeGreaterThan(0);
     expect(getAllMemoryKits().length).toBeGreaterThan(0);
+    expect(getAllPsus().length).toBeGreaterThan(0);
   });
 
   it("keeps CPU specs usable for comparison", () => {
@@ -59,6 +61,12 @@ describe("catalog fixtures", () => {
           memoryKit.moduleCount > 0 &&
           memoryKit.speedMtS > 0,
       ),
+    ).toBe(true);
+  });
+
+  it("models PSUs with explicit wattage", () => {
+    expect(
+      getAllPsus().every((psu) => psu.brand.length > 0 && psu.wattage > 0),
     ).toBe(true);
   });
 });

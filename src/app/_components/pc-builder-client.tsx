@@ -7,11 +7,13 @@ import {
   clearGpu,
   clearMemoryKit,
   clearMotherboard,
+  clearPsu,
   createEmptyBuild,
   selectCpu,
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
+  selectPsu,
 } from "@/modules/builds/build";
 import {
   evaluateBuild,
@@ -20,13 +22,14 @@ import {
   type BuildCompletion,
 } from "@/modules/builds/evaluate";
 import type { PcBuild } from "@/modules/builds/types";
-import type { Cpu, Gpu, MemoryKit, Motherboard } from "@/modules/catalog/types";
+import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "@/modules/catalog/types";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
   motherboards: readonly Motherboard[];
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
+  psus: readonly Psu[];
 };
 
 export function PcBuilderClient({
@@ -34,6 +37,7 @@ export function PcBuilderClient({
   motherboards,
   gpus,
   memoryKits,
+  psus,
 }: PcBuilderClientProps) {
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
@@ -41,6 +45,7 @@ export function PcBuilderClient({
   const selectedMotherboard = findById(motherboards, build.motherboardId);
   const selectedGpu = findById(gpus, build.gpuId);
   const selectedMemoryKit = findById(memoryKits, build.memoryKitId);
+  const selectedPsu = findById(psus, build.psuId);
 
   const evaluation = useMemo(
     () =>
@@ -49,8 +54,9 @@ export function PcBuilderClient({
         motherboards,
         gpus,
         memoryKits,
+        psus,
       }),
-    [build, cpus, motherboards, gpus, memoryKits],
+    [build, cpus, motherboards, gpus, memoryKits, psus],
   );
 
   return (
@@ -121,6 +127,20 @@ export function PcBuilderClient({
             }
             onClear={() => setBuild((current) => clearMemoryKit(current))}
           />
+
+          <ComponentSelect
+            label="PSU"
+            value={build.psuId}
+            placeholder="Seleccionar PSU"
+            options={psus.map((psu) => ({
+              id: psu.id,
+              label: formatPsu(psu),
+            }))}
+            onSelect={(componentId) =>
+              setBuild((current) => selectPsu(current, componentId))
+            }
+            onClear={() => setBuild((current) => clearPsu(current))}
+          />
         </div>
       </section>
 
@@ -164,6 +184,10 @@ export function PcBuilderClient({
                 ? formatMemoryKit(selectedMemoryKit)
                 : "No seleccionado"
             }
+          />
+          <BuildSummaryRow
+            label="PSU"
+            value={selectedPsu ? formatPsu(selectedPsu) : "No seleccionado"}
           />
         </dl>
       </section>
@@ -247,6 +271,10 @@ function formatMemoryKit(memoryKit: MemoryKit) {
   return `${memoryKit.brand} ${memoryKit.capacityGb} GB (${memoryKit.moduleCount}x${moduleCapacityGb}) ${memoryKit.memoryType} ${memoryKit.speedMtS} MT/s`;
 }
 
+function formatPsu(psu: Psu) {
+  return `${psu.brand} ${psu.model} - ${psu.wattage} W`;
+}
+
 function findById<TItem extends { id: string }>(
   items: readonly TItem[],
   id: string | null,
@@ -289,6 +317,15 @@ function BuildEvaluationSummary({
         ) : (
           <p className="mt-2 text-zinc-600">No faltan componentes.</p>
         )}
+      </div>
+
+      <div>
+        <p className="font-medium text-zinc-900">Potencia estimada</p>
+        <p className="mt-2 text-zinc-600">
+          {evaluation.power.requiredPsuWatts
+            ? `${evaluation.power.estimatedLoadWatts} W estimados, ${evaluation.power.requiredPsuWatts} W requeridos con margen.`
+            : "Selecciona CPU, GPU y PSU para estimar la potencia requerida."}
+        </p>
       </div>
 
       <div className={compatibilityTone.className}>
@@ -342,6 +379,7 @@ function formatSlot(slot: BuildComponentSlot) {
     motherboard: "Motherboard",
     gpu: "GPU",
     memoryKit: "RAM",
+    psu: "PSU",
   };
 
   return labels[slot];

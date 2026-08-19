@@ -1,4 +1,4 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard } from "./types";
+import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "./types";
 
 export const cpus = [
   {
@@ -231,3 +231,34 @@ export const memoryKits = [
     speedMtS: 5600,
   },
 ] as const satisfies readonly MemoryKit[];
+
+export const psus = [
+  {
+    id: "psu-generic-400w",
+    kind: "psu",
+    brand: "Generic",
+    model: "Office 400W",
+    wattage: 400,
+  },
+  {
+    id: "psu-aerocool-cylon-500w",
+    kind: "psu",
+    brand: "Aerocool",
+    model: "Cylon 500W",
+    wattage: 500,
+  },
+  {
+    id: "psu-corsair-cx650-650w",
+    kind: "psu",
+    brand: "Corsair",
+    model: "CX650",
+    wattage: 650,
+  },
+  {
+    id: "psu-seasonic-focus-gx-750w",
+    kind: "psu",
+    brand: "Seasonic",
+    model: "Focus GX-750",
+    wattage: 750,
+  },
+] as const satisfies readonly Psu[];

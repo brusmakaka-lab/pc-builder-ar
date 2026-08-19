@@ -10,7 +10,8 @@ export type CatalogComponentKind =
   | "cpu"
   | "motherboard"
   | "gpu"
-  | "memoryKit";
+  | "memoryKit"
+  | "psu";
 
 type BaseComponent = {
   id: ComponentId;
@@ -56,4 +57,9 @@ export type MemoryKit = BaseComponent & {
   speedMtS: number;
 };
 
-export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit;
+export type Psu = BaseComponent & {
+  kind: "psu";
+  wattage: number;
+};
+
+export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit | Psu;

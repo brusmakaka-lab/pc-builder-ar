@@ -5,11 +5,13 @@ import {
   clearGpu,
   clearMemoryKit,
   clearMotherboard,
+  clearPsu,
   createEmptyBuild,
   selectCpu,
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
+  selectPsu,
 } from "./build";
 
 describe("PcBuild operations", () => {
@@ -19,6 +21,7 @@ describe("PcBuild operations", () => {
       motherboardId: null,
       gpuId: null,
       memoryKitId: null,
+      psuId: null,
     });
   });
 
@@ -29,6 +32,7 @@ describe("PcBuild operations", () => {
     expect(build.motherboardId).toBeNull();
     expect(build.gpuId).toBeNull();
     expect(build.memoryKitId).toBeNull();
+    expect(build.psuId).toBeNull();
   });
 
   it("selects and replaces a CPU without mutating the previous build", () => {
@@ -62,28 +66,44 @@ describe("PcBuild operations", () => {
     });
   });
 
+  it("selects and replaces a PSU", () => {
+    const withPsu = selectPsu(createEmptyBuild(), "psu-a");
+    const withReplacement = selectPsu(withPsu, "psu-b");
+
+    expect(withPsu.psuId).toBe("psu-a");
+    expect(withReplacement.psuId).toBe("psu-b");
+    expect(withReplacement).not.toBe(withPsu);
+  });
+
   it("clears individual selections", () => {
-    const build = selectMemoryKit(
-      selectGpu(
-        selectMotherboard(selectCpu(createEmptyBuild(), "cpu-a"), "board-a"),
-        "gpu-a",
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(selectCpu(createEmptyBuild(), "cpu-a"), "board-a"),
+          "gpu-a",
+        ),
+        "memory-a",
       ),
-      "memory-a",
+      "psu-a",
     );
 
     expect(clearCpu(build).cpuId).toBeNull();
     expect(clearMotherboard(build).motherboardId).toBeNull();
     expect(clearGpu(build).gpuId).toBeNull();
     expect(clearMemoryKit(build).memoryKitId).toBeNull();
+    expect(clearPsu(build).psuId).toBeNull();
   });
 
   it("does not alter other positions when one position changes", () => {
-    const build = selectMemoryKit(
-      selectGpu(
-        selectMotherboard(selectCpu(createEmptyBuild(), "cpu-a"), "board-a"),
-        "gpu-a",
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(selectCpu(createEmptyBuild(), "cpu-a"), "board-a"),
+          "gpu-a",
+        ),
+        "memory-a",
       ),
-      "memory-a",
+      "psu-a",
     );
 
     expect(selectCpu(build, "cpu-b")).toEqual({
@@ -91,6 +111,7 @@ describe("PcBuild operations", () => {
       motherboardId: "board-a",
       gpuId: "gpu-a",
       memoryKitId: "memory-a",
+      psuId: "psu-a",
     });
   });
 });

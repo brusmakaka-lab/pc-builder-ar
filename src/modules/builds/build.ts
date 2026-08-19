@@ -8,6 +8,7 @@ export function createEmptyBuild(): PcBuild {
     motherboardId: null,
     gpuId: null,
     memoryKitId: null,
+    psuId: null,
   };
 }
 
@@ -33,6 +34,10 @@ export function selectMemoryKit(
   return { ...build, memoryKitId };
 }
 
+export function selectPsu(build: PcBuild, psuId: ComponentId): PcBuild {
+  return { ...build, psuId };
+}
+
 export function clearCpu(build: PcBuild): PcBuild {
   return { ...build, cpuId: null };
 }
@@ -47,4 +52,8 @@ export function clearGpu(build: PcBuild): PcBuild {
 
 export function clearMemoryKit(build: PcBuild): PcBuild {
   return { ...build, memoryKitId: null };
+}
+
+export function clearPsu(build: PcBuild): PcBuild {
+  return { ...build, psuId: null };
 }

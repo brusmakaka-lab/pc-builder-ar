@@ -3,6 +3,7 @@ import {
   getAllGpus,
   getAllMemoryKits,
   getAllMotherboards,
+  getAllPsus,
 } from "@/modules/catalog/catalog";
 
 import { PcBuilderClient } from "./_components/pc-builder-client";
@@ -12,6 +13,7 @@ export default function Home() {
   const motherboards = getAllMotherboards();
   const gpus = getAllGpus();
   const memoryKits = getAllMemoryKits();
+  const psus = getAllPsus();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12 sm:py-16">
@@ -29,6 +31,7 @@ export default function Home() {
         motherboards={motherboards}
         gpus={gpus}
         memoryKits={memoryKits}
+        psus={psus}
       />
     </main>
   );

@@ -8,6 +8,7 @@ import {
   getAllGpus,
   getAllMemoryKits,
   getAllMotherboards,
+  getAllPsus,
 } from "../catalog/catalog";
 
 import {
@@ -16,11 +17,13 @@ import {
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
+  selectPsu,
 } from "./build";
 import {
   evaluateBuild,
   evaluateCpuMotherboardCompatibility,
   evaluateMemoryMotherboardCompatibility,
+  evaluatePsuPowerCompatibility,
 } from "./evaluate";
 
 const catalog = {
@@ -28,6 +31,7 @@ const catalog = {
   motherboards: getAllMotherboards(),
   gpus: getAllGpus(),
   memoryKits: getAllMemoryKits(),
+  psus: getAllPsus(),
 };
 
 describe("evaluateCpuMotherboardCompatibility", () => {
@@ -197,13 +201,127 @@ describe("evaluateMemoryMotherboardCompatibility", () => {
   });
 });
 
+describe("evaluatePsuPowerCompatibility", () => {
+  it("returns unknown when PSU is absent", () => {
+    const build = selectGpu(
+      selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+      "gpu-asus-prime-rtx-5070-oc",
+    );
+
+    expect(evaluatePsuPowerCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when CPU is absent", () => {
+    const build = selectPsu(
+      selectGpu(createEmptyBuild(), "gpu-asus-prime-rtx-5070-oc"),
+      "psu-corsair-cx650-650w",
+    );
+
+    expect(evaluatePsuPowerCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when GPU is absent", () => {
+    const build = selectPsu(
+      selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+      "psu-corsair-cx650-650w",
+    );
+
+    expect(evaluatePsuPowerCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible when PSU wattage covers the required estimate", () => {
+    const build = selectPsu(
+      selectGpu(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "gpu-asus-prime-rtx-5070-oc",
+      ),
+      "psu-corsair-cx650-650w",
+    );
+
+    expect(evaluatePsuPowerCompatibility(build, catalog)).toEqual({
+      compatible: true,
+      psuWattage: 650,
+      estimatedLoadWatts: 315,
+      requiredPsuWatts: 394,
+    });
+  });
+
+  it("returns incompatible when PSU wattage is below the required estimate", () => {
+    const build = selectPsu(
+      selectGpu(
+        selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+        "gpu-asus-prime-rtx-5070-oc",
+      ),
+      "psu-test-400w",
+    );
+    const testCatalog = {
+      ...catalog,
+      psus: [
+        ...catalog.psus,
+        {
+          id: "psu-test-400w",
+          kind: "psu",
+          brand: "Test",
+          model: "Small 400W",
+          wattage: 400,
+        } as const,
+      ],
+    };
+
+    expect(evaluatePsuPowerCompatibility(build, testCatalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "INSUFFICIENT_WATTAGE",
+        psuWattage: 400,
+        estimatedLoadWatts: 375,
+        requiredPsuWatts: 469,
+      },
+    });
+  });
+
+  it("does not mutate the original build", () => {
+    const build = selectPsu(
+      selectGpu(
+        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+        "gpu-asus-prime-rtx-5070-oc",
+      ),
+      "psu-corsair-cx650-650w",
+    );
+    const before = { ...build };
+
+    evaluatePsuPowerCompatibility(build, catalog);
+
+    expect(build).toEqual(before);
+  });
+
+  it("does not mutate the catalog", () => {
+    const before = {
+      cpuIds: catalog.cpus.map((cpu) => cpu.id),
+      gpuIds: catalog.gpus.map((gpu) => gpu.id),
+      psuIds: catalog.psus.map((psu) => psu.id),
+    };
+
+    evaluatePsuPowerCompatibility(createEmptyBuild(), catalog);
+
+    expect({
+      cpuIds: catalog.cpus.map((cpu) => cpu.id),
+      gpuIds: catalog.gpus.map((gpu) => gpu.id),
+      psuIds: catalog.psus.map((psu) => psu.id),
+    }).toEqual(before);
+  });
+});
+
 describe("evaluateBuild", () => {
   it("evaluates an empty build", () => {
     expect(evaluateBuild(createEmptyBuild(), catalog)).toEqual({
       completion: "empty",
       compatibility: "unknown",
-      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit"],
+      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit", "psu"],
       issues: [],
+      power: {
+        estimatedLoadWatts: null,
+        requiredPsuWatts: null,
+      },
     });
   });
 
@@ -213,8 +331,12 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["motherboard", "gpu", "memoryKit"],
+      missingComponents: ["motherboard", "gpu", "memoryKit", "psu"],
       issues: [],
+      power: {
+        estimatedLoadWatts: null,
+        requiredPsuWatts: null,
+      },
     });
   });
 
@@ -230,8 +352,12 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu", "memoryKit"],
+      missingComponents: ["cpu", "gpu", "memoryKit", "psu"],
       issues: [],
+      power: {
+        estimatedLoadWatts: null,
+        requiredPsuWatts: null,
+      },
     });
   });
 
@@ -244,7 +370,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["gpu", "memoryKit"],
+      missingComponents: ["gpu", "memoryKit", "psu"],
       issues: [],
     });
   });
@@ -258,7 +384,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toEqual({
       completion: "partial",
       compatibility: "incompatible",
-      missingComponents: ["gpu", "memoryKit"],
+      missingComponents: ["gpu", "memoryKit", "psu"],
       issues: [
         {
           code: "cpu-motherboard-socket-mismatch",
@@ -266,6 +392,10 @@ describe("evaluateBuild", () => {
           message: "La CPU utiliza AM5 y la motherboard utiliza AM4.",
         },
       ],
+      power: {
+        estimatedLoadWatts: null,
+        requiredPsuWatts: null,
+      },
     });
   });
 
@@ -281,7 +411,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["memoryKit"],
+      missingComponents: ["memoryKit", "psu"],
     });
   });
 
@@ -297,12 +427,12 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu"],
+      missingComponents: ["cpu", "gpu", "psu"],
       issues: [],
     });
   });
 
-  it("evaluates CPU motherboard and RAM compatibility without GPU as compatible", () => {
+  it("evaluates CPU motherboard and RAM compatibility without GPU as unknown", () => {
     const build = selectMemoryKit(
       selectMotherboard(
         selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
@@ -313,22 +443,25 @@ describe("evaluateBuild", () => {
 
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
-      compatibility: "compatible",
-      missingComponents: ["gpu"],
+      compatibility: "unknown",
+      missingComponents: ["gpu", "psu"],
       issues: [],
     });
   });
 
   it("evaluates a complete compatible build", () => {
-    const build = selectMemoryKit(
-      selectGpu(
-        selectMotherboard(
-          selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-          "motherboard-msi-b650-tomahawk-wifi",
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+            "motherboard-msi-b650-tomahawk-wifi",
+          ),
+          "gpu-asus-prime-rtx-5070-oc",
         ),
-        "gpu-asus-prime-rtx-5070-oc",
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      "psu-corsair-cx650-650w",
     );
 
     expect(evaluateBuild(build, catalog)).toEqual({
@@ -336,6 +469,10 @@ describe("evaluateBuild", () => {
       compatibility: "compatible",
       missingComponents: [],
       issues: [],
+      power: {
+        estimatedLoadWatts: 315,
+        requiredPsuWatts: 394,
+      },
     });
   });
 
@@ -346,6 +483,7 @@ describe("evaluateBuild", () => {
       "cpu",
       "motherboard",
       "memoryKit",
+      "psu",
     ]);
   });
 
@@ -402,58 +540,131 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
   });
 
-  it("reports both incompatibilities as issues", () => {
-    const build = selectMemoryKit(
-      selectMotherboard(
-        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-        "motherboard-asus-prime-b550m-a",
+  it("keeps incompatible when PSU power fails", () => {
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+            "motherboard-asus-prime-b760-plus",
+          ),
+          "gpu-asus-prime-rtx-5070-oc",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      "psu-generic-400w",
+    );
+
+    expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+      ["psu-insufficient-wattage"],
+    );
+  });
+
+  it("reports multiple incompatibilities as issues", () => {
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+            "motherboard-asus-prime-b550m-a",
+          ),
+          "gpu-asus-prime-rtx-5070-oc",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      ),
+      "psu-generic-400w",
     );
 
     expect(evaluateBuild(build, catalog).issues).toEqual([
       {
         code: "cpu-motherboard-socket-mismatch",
         severity: "error",
-        message: "La CPU utiliza AM5 y la motherboard utiliza AM4.",
+        message: "La CPU utiliza LGA1700 y la motherboard utiliza AM4.",
       },
       {
         code: "memory-motherboard-type-mismatch",
         severity: "error",
         message: "La RAM utiliza DDR5 y la motherboard utiliza DDR4.",
       },
+      {
+        code: "psu-insufficient-wattage",
+        severity: "error",
+        message: "La PSU entrega 400 W y la build requiere al menos 469 W estimados.",
+      },
     ]);
   });
 
   it("reports issues in deterministic compatibility-check order", () => {
-    const build = selectMemoryKit(
-      selectMotherboard(
-        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-        "motherboard-asus-prime-b550m-a",
+    const build = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+            "motherboard-asus-prime-b550m-a",
+          ),
+          "gpu-asus-prime-rtx-5070-oc",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      "psu-generic-400w",
     );
 
     expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
       [
         "cpu-motherboard-socket-mismatch",
         "memory-motherboard-type-mismatch",
+        "psu-insufficient-wattage",
       ],
     );
   });
 
-  it("does not change compatibility when only GPU changes", () => {
-    const baseBuild = selectMemoryKit(
-      selectMotherboard(
-        selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-        "motherboard-msi-b650-tomahawk-wifi",
+  it("updates power evaluation when GPU changes", () => {
+    const baseBuild = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+            "motherboard-asus-prime-b760-plus",
+          ),
+          "gpu-msi-rtx-4060-ventus-2x",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      "psu-generic-400w",
     );
     const withGpu = selectGpu(baseBuild, "gpu-asus-prime-rtx-5070-oc");
 
     expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
-    expect(evaluateBuild(withGpu, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(baseBuild, catalog).power).toEqual({
+      estimatedLoadWatts: 240,
+      requiredPsuWatts: 300,
+    });
+    expect(evaluateBuild(withGpu, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(withGpu, catalog).power).toEqual({
+      estimatedLoadWatts: 375,
+      requiredPsuWatts: 469,
+    });
+  });
+
+  it("updates power evaluation when CPU changes", () => {
+    const baseBuild = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+            "motherboard-asus-prime-b760-plus",
+          ),
+          "gpu-asus-prime-rtx-5070-oc",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      ),
+      "psu-generic-400w",
+    );
+    const withCpu = selectCpu(baseBuild, "cpu-intel-core-i5-14600k");
+
+    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(withCpu, catalog).compatibility).toBe("incompatible");
   });
 
   it("does not mutate the original build", () => {
@@ -474,6 +685,7 @@ describe("evaluateBuild", () => {
       motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
       gpuIds: catalog.gpus.map((gpu) => gpu.id),
       memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
+      psuIds: catalog.psus.map((psu) => psu.id),
     };
 
     evaluateBuild(createEmptyBuild(), catalog);
@@ -483,6 +695,7 @@ describe("evaluateBuild", () => {
       motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
       gpuIds: catalog.gpus.map((gpu) => gpu.id),
       memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
+      psuIds: catalog.psus.map((psu) => psu.id),
     }).toEqual(before);
   });
 
@@ -499,7 +712,7 @@ describe("evaluateBuild", () => {
 
     expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("unknown");
     expect(evaluateBuild(withGpu, catalog).compatibility).toBe("unknown");
-    expect(evaluateBuild(withMemory, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(withMemory, catalog).compatibility).toBe("unknown");
   });
 
   it("keeps socket comparison centralized in the compatibility module", () => {
@@ -524,6 +737,18 @@ describe("evaluateBuild", () => {
 
     expect(evaluateSource).not.toContain("memoryType ===");
     expect(clientSource).not.toContain("memoryType ===");
+    expect(evaluateBuild).toBeTypeOf("function");
+  });
+
+  it("keeps wattage calculation centralized outside React", () => {
+    const clientSource = readFileSync(
+      join(process.cwd(), "src/app/_components/pc-builder-client.tsx"),
+      "utf8",
+    );
+
+    expect(clientSource).not.toContain("tdpWatts");
+    expect(clientSource).not.toContain("boardPowerWatts");
+    expect(clientSource).not.toContain("requiredPsuWatts =");
     expect(evaluateBuild).toBeTypeOf("function");
   });
 });

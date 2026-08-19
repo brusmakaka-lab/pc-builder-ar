@@ -1,6 +1,6 @@
 # Builds Domain
 
-`PcBuild` representa una build temporal en memoria. Puede estar incompleta: CPU, motherboard, GPU y RAM son selecciones independientes y pueden ser `null`.
+`PcBuild` representa una build temporal en memoria. Puede estar incompleta: CPU, motherboard, GPU, RAM y PSU son selecciones independientes y pueden ser `null`.
 
 ## IDs vs objetos
 
@@ -11,7 +11,8 @@ La build guarda IDs de componentes, no objetos completos:
   cpuId: "cpu-amd-ryzen-5-7600",
   motherboardId: null,
   gpuId: "gpu-asus-prime-rtx-5070-oc",
-  memoryKitId: null
+  memoryKitId: null,
+  psuId: null
 }
 ```
 
@@ -36,10 +37,11 @@ La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son re
 
 Una build puede conservar selecciones incompatibles. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
 
-La evaluacion conoce dos reglas:
+La evaluacion conoce tres reglas:
 
 - CPU/motherboard: `cpu.socket` debe coincidir con `motherboard.socket`.
 - RAM/motherboard: `memoryKit.memoryType` debe coincidir con `motherboard.memoryType`.
+- PSU/potencia: `psu.wattage` debe cubrir la potencia minima estimada para CPU y GPU.
 
 Las reglas viven en `src/modules/compatibility/` y `evaluateBuild` solo las orquesta contra los IDs seleccionados. La UI consume `BuildEvaluation`; no decide compatibilidad por su cuenta.
 
@@ -48,6 +50,20 @@ La precedencia del estado global es:
 - `incompatible` si al menos una regla evaluable falla.
 - `unknown` si no hay fallas pero falta algun componente necesario para completar las reglas conocidas.
 - `compatible` si todas las reglas conocidas pueden evaluarse y pasan.
+
+La regla de potencia usa los watts ya modelados: `cpu.tdpWatts` y `gpu.boardPowerWatts`. La carga estimada es:
+
+```text
+estimatedLoadWatts = cpu.tdpWatts + gpu.boardPowerWatts
+```
+
+La potencia requerida aplica un margen simple del 25%:
+
+```text
+requiredPsuWatts = ceil(estimatedLoadWatts * 1.25)
+```
+
+Esta es una aproximacion de dominio para screening inicial: combina TDP de CPU y board power de GPU, no una medicion electrica real ni una recomendacion final de compra. Conectores, calidad de PSU, certificaciones, eficiencia, transients y estandares ATX quedan fuera de scope.
 
 ## GPU y motherboard
 
@@ -59,4 +75,4 @@ La generacion PCIe no debe tratarse como incompatibilidad por defecto: una difer
 
 ## Fuera de scope
 
-No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, compatibilidad de GPU con otros componentes, fuente, gabinete, cooling, benchmarks ni recomendaciones.
+No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, conectores de PSU, calidad de PSU, gabinete, cooling, benchmarks ni recomendaciones.

@@ -1,4 +1,4 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard } from "../catalog/types";
+import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "../catalog/types";
 import {
   checkCpuMotherboardCompatibility,
   type CpuMotherboardCompatibility,
@@ -7,10 +7,19 @@ import {
   checkMemoryMotherboardCompatibility,
   type MemoryMotherboardCompatibility,
 } from "../compatibility/memory-motherboard";
+import {
+  checkPsuPowerCompatibility,
+  type PsuPowerCompatibility,
+} from "../compatibility/psu-power";
 
 import type { PcBuild } from "./types";
 
-export type BuildComponentSlot = "cpu" | "motherboard" | "gpu" | "memoryKit";
+export type BuildComponentSlot =
+  | "cpu"
+  | "motherboard"
+  | "gpu"
+  | "memoryKit"
+  | "psu";
 
 export type BuildCompletion = "empty" | "partial" | "complete";
 
@@ -22,9 +31,15 @@ export type BuildCompatibilityStatus =
 export type BuildIssue = {
   code:
     | "cpu-motherboard-socket-mismatch"
-    | "memory-motherboard-type-mismatch";
+    | "memory-motherboard-type-mismatch"
+    | "psu-insufficient-wattage";
   severity: "error";
   message: string;
+};
+
+export type BuildPowerEvaluation = {
+  estimatedLoadWatts: number | null;
+  requiredPsuWatts: number | null;
 };
 
 export type BuildEvaluation = {
@@ -32,6 +47,7 @@ export type BuildEvaluation = {
   compatibility: BuildCompatibilityStatus;
   missingComponents: BuildComponentSlot[];
   issues: BuildIssue[];
+  power: BuildPowerEvaluation;
 };
 
 export type CpuMotherboardCompatibilityCatalog = {
@@ -44,9 +60,16 @@ export type MemoryMotherboardCompatibilityCatalog = {
   memoryKits: readonly MemoryKit[];
 };
 
+export type PsuPowerCompatibilityCatalog = {
+  cpus: readonly Cpu[];
+  gpus: readonly Gpu[];
+  psus: readonly Psu[];
+};
+
 export type BuildEvaluationCatalog = CpuMotherboardCompatibilityCatalog & {
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
+  psus: readonly Psu[];
 };
 
 export function evaluateCpuMotherboardCompatibility(
@@ -91,6 +114,25 @@ export function evaluateMemoryMotherboardCompatibility(
   return checkMemoryMotherboardCompatibility(memoryKit, motherboard);
 }
 
+export function evaluatePsuPowerCompatibility(
+  build: PcBuild,
+  catalog: PsuPowerCompatibilityCatalog,
+): PsuPowerCompatibility | null {
+  if (!build.cpuId || !build.gpuId || !build.psuId) {
+    return null;
+  }
+
+  const cpu = catalog.cpus.find((item) => item.id === build.cpuId);
+  const gpu = catalog.gpus.find((item) => item.id === build.gpuId);
+  const psu = catalog.psus.find((item) => item.id === build.psuId);
+
+  if (!cpu || !gpu || !psu) {
+    return null;
+  }
+
+  return checkPsuPowerCompatibility(cpu, gpu, psu);
+}
+
 export function evaluateBuild(
   build: PcBuild,
   catalog: BuildEvaluationCatalog,
@@ -105,9 +147,11 @@ export function evaluateBuild(
     build,
     catalog,
   );
+  const psuPowerCompatibility = evaluatePsuPowerCompatibility(build, catalog);
   const issues = getBuildIssues(
     cpuMotherboardCompatibility,
     memoryMotherboardCompatibility,
+    psuPowerCompatibility,
   );
 
   return {
@@ -115,9 +159,11 @@ export function evaluateBuild(
     compatibility: getBuildCompatibilityStatus([
       cpuMotherboardCompatibility,
       memoryMotherboardCompatibility,
+      psuPowerCompatibility,
     ]),
     missingComponents,
     issues,
+    power: getBuildPowerEvaluation(psuPowerCompatibility),
   };
 }
 
@@ -140,6 +186,10 @@ function getMissingComponents(build: PcBuild): BuildComponentSlot[] {
     missingComponents.push("memoryKit");
   }
 
+  if (!build.psuId) {
+    missingComponents.push("psu");
+  }
+
   return missingComponents;
 }
 
@@ -151,7 +201,8 @@ function getBuildCompletion(
     !build.cpuId &&
     !build.motherboardId &&
     !build.gpuId &&
-    !build.memoryKitId
+    !build.memoryKitId &&
+    !build.psuId
   ) {
     return "empty";
   }
@@ -167,6 +218,7 @@ function getBuildCompatibilityStatus(
   compatibilityChecks: readonly (
     | CpuMotherboardCompatibility
     | MemoryMotherboardCompatibility
+    | PsuPowerCompatibility
     | null
   )[],
 ): BuildCompatibilityStatus {
@@ -188,6 +240,7 @@ function getBuildCompatibilityStatus(
 function getBuildIssues(
   cpuMotherboardCompatibility: CpuMotherboardCompatibility | null,
   memoryMotherboardCompatibility: MemoryMotherboardCompatibility | null,
+  psuPowerCompatibility: PsuPowerCompatibility | null,
 ): BuildIssue[] {
   const issues: BuildIssue[] = [];
 
@@ -207,5 +260,36 @@ function getBuildIssues(
     });
   }
 
+  if (psuPowerCompatibility?.compatible === false) {
+    issues.push({
+      code: "psu-insufficient-wattage",
+      severity: "error",
+      message: `La PSU entrega ${psuPowerCompatibility.reason.psuWattage} W y la build requiere al menos ${psuPowerCompatibility.reason.requiredPsuWatts} W estimados.`,
+    });
+  }
+
   return issues;
+}
+
+function getBuildPowerEvaluation(
+  psuPowerCompatibility: PsuPowerCompatibility | null,
+): BuildPowerEvaluation {
+  if (!psuPowerCompatibility) {
+    return {
+      estimatedLoadWatts: null,
+      requiredPsuWatts: null,
+    };
+  }
+
+  if (psuPowerCompatibility.compatible) {
+    return {
+      estimatedLoadWatts: psuPowerCompatibility.estimatedLoadWatts,
+      requiredPsuWatts: psuPowerCompatibility.requiredPsuWatts,
+    };
+  }
+
+  return {
+    estimatedLoadWatts: psuPowerCompatibility.reason.estimatedLoadWatts,
+    requiredPsuWatts: psuPowerCompatibility.reason.requiredPsuWatts,
+  };
 }
