@@ -1,0 +1,33 @@
+{
+  "name": "pc-builder-ar",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "4.1.17",
+    "drizzle-orm": "0.44.7",
+    "next": "16.3.1",
+    "postgres": "3.4.7",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "zod": "4.1.13"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.6",
+    "@types/react-dom": "19.2.3",
+    "drizzle-kit": "0.31.7",
+    "eslint": "9.39.1",
+    "eslint-config-next": "16.3.1",
+    "tailwindcss": "4.1.17",
+    "typescript": "5.9.3",
+    "vitest": "4.0.13"
+  }
+}
