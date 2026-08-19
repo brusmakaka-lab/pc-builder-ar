@@ -13,11 +13,14 @@ import {
   selectMemoryKit,
   selectMotherboard,
 } from "@/modules/builds/build";
-import { evaluateCpuMotherboardCompatibility } from "@/modules/builds/evaluate";
+import {
+  evaluateBuild,
+  type BuildCompatibilityStatus,
+  type BuildComponentSlot,
+  type BuildCompletion,
+} from "@/modules/builds/evaluate";
 import type { PcBuild } from "@/modules/builds/types";
 import type { Cpu, Gpu, MemoryKit, Motherboard } from "@/modules/catalog/types";
-
-import { getCpuMotherboardCompatibilityView } from "./cpu-motherboard-compatibility-message";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
@@ -39,18 +42,15 @@ export function PcBuilderClient({
   const selectedGpu = findById(gpus, build.gpuId);
   const selectedMemoryKit = findById(memoryKits, build.memoryKitId);
 
-  const compatibility = useMemo(
+  const evaluation = useMemo(
     () =>
-      evaluateCpuMotherboardCompatibility(build, {
+      evaluateBuild(build, {
         cpus,
         motherboards,
+        gpus,
+        memoryKits,
       }),
-    [build, cpus, motherboards],
-  );
-  const compatibilityView = getCpuMotherboardCompatibilityView(
-    compatibility,
-    selectedCpu,
-    selectedMotherboard,
+    [build, cpus, motherboards, gpus, memoryKits],
   );
 
   return (
@@ -168,14 +168,14 @@ export function PcBuilderClient({
         </dl>
       </section>
 
-      <section aria-labelledby="compatibility-title" className="space-y-3">
+      <section aria-labelledby="evaluation-title" className="space-y-3">
         <h2
-          id="compatibility-title"
+          id="evaluation-title"
           className="text-xl font-semibold text-zinc-900"
         >
-          Compatibilidad CPU / Motherboard
+          Evaluacion de build
         </h2>
-        <CompatibilityStatus view={compatibilityView} />
+        <BuildEvaluationSummary evaluation={evaluation} />
       </section>
     </div>
   );
@@ -241,36 +241,6 @@ function BuildSummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CompatibilityStatus({
-  view,
-}: {
-  view: ReturnType<typeof getCpuMotherboardCompatibilityView>;
-}) {
-  if (view.status === "neutral") {
-    return (
-      <div className="border-y border-zinc-200 py-4 text-zinc-700">
-        {view.message}
-      </div>
-    );
-  }
-
-  if (view.status === "compatible") {
-    return (
-      <div className="border-y border-emerald-300 bg-emerald-50 px-4 py-4 text-emerald-950">
-        <p className="font-semibold">{view.title}</p>
-        <p>{view.message}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="border-y border-red-300 bg-red-50 px-4 py-4 text-red-950">
-      <p className="font-semibold">{view.title}</p>
-      <p>{view.message}</p>
-    </div>
-  );
-}
-
 function formatMemoryKit(memoryKit: MemoryKit) {
   const moduleCapacityGb = memoryKit.capacityGb / memoryKit.moduleCount;
 
@@ -286,4 +256,119 @@ function findById<TItem extends { id: string }>(
   }
 
   return items.find((item) => item.id === id) ?? null;
+}
+
+function BuildEvaluationSummary({
+  evaluation,
+}: {
+  evaluation: ReturnType<typeof evaluateBuild>;
+}) {
+  const compatibilityTone = getCompatibilityTone(evaluation.compatibility);
+
+  return (
+    <div className="space-y-4 border-y border-zinc-200 py-4">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <EvaluationFact
+          label="Completitud"
+          value={formatCompletion(evaluation.completion)}
+        />
+        <EvaluationFact
+          label="Compatibilidad"
+          value={formatCompatibility(evaluation.compatibility)}
+        />
+      </div>
+
+      <div>
+        <p className="font-medium text-zinc-900">Componentes faltantes</p>
+        {evaluation.missingComponents.length > 0 ? (
+          <ul className="mt-2 list-inside list-disc text-zinc-600">
+            {evaluation.missingComponents.map((slot) => (
+              <li key={slot}>{formatSlot(slot)}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-zinc-600">No faltan componentes.</p>
+        )}
+      </div>
+
+      <div className={compatibilityTone.className}>
+        <p className="font-semibold">{compatibilityTone.title}</p>
+        {evaluation.issues.length > 0 ? (
+          <ul className="mt-1 list-inside list-disc">
+            {evaluation.issues.map((issue) => (
+              <li key={issue.code}>{issue.message}</li>
+            ))}
+          </ul>
+        ) : (
+          <p>{compatibilityTone.message}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EvaluationFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-sm font-medium text-zinc-500">{label}</p>
+      <p className="text-zinc-900">{value}</p>
+    </div>
+  );
+}
+
+function formatCompletion(completion: BuildCompletion) {
+  const labels: Record<BuildCompletion, string> = {
+    empty: "Vacia",
+    partial: "Parcial",
+    complete: "Completa",
+  };
+
+  return labels[completion];
+}
+
+function formatCompatibility(compatibility: BuildCompatibilityStatus) {
+  const labels: Record<BuildCompatibilityStatus, string> = {
+    unknown: "Desconocida",
+    compatible: "Compatible",
+    incompatible: "Incompatible",
+  };
+
+  return labels[compatibility];
+}
+
+function formatSlot(slot: BuildComponentSlot) {
+  const labels: Record<BuildComponentSlot, string> = {
+    cpu: "CPU",
+    motherboard: "Motherboard",
+    gpu: "GPU",
+    memoryKit: "RAM",
+  };
+
+  return labels[slot];
+}
+
+function getCompatibilityTone(compatibility: BuildCompatibilityStatus) {
+  if (compatibility === "compatible") {
+    return {
+      className:
+        "border-y border-emerald-300 bg-emerald-50 px-4 py-4 text-emerald-950",
+      title: "✓ Compatible",
+      message: "Los chequeos disponibles no detectan incompatibilidades.",
+    };
+  }
+
+  if (compatibility === "incompatible") {
+    return {
+      className: "border-y border-red-300 bg-red-50 px-4 py-4 text-red-950",
+      title: "✕ Incompatible",
+      message: "Se detectaron incompatibilidades.",
+    };
+  }
+
+  return {
+    className: "border-y border-zinc-200 px-4 py-4 text-zinc-700",
+    title: "Compatibilidad desconocida",
+    message:
+      "Selecciona CPU y motherboard para evaluar la compatibilidad conocida.",
+  };
 }

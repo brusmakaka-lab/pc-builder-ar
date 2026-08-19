@@ -21,9 +21,20 @@ Esta decision evita duplicar datos del catalogo, facilita persistencia futura y 
 
 El modulo expone operaciones pequenas e inmutables para crear una build vacia, seleccionar o limpiar cada posicion. Cada operacion devuelve una nueva build y no muta la instancia recibida.
 
+## Evaluacion
+
+`BuildEvaluation` representa hechos derivados de una `PcBuild` y del catalogo actual:
+
+- `completion`: `empty`, `partial` o `complete`.
+- `compatibility`: `unknown`, `compatible` o `incompatible`.
+- `missingComponents`: slots faltantes en orden determinista.
+- `issues`: problemas detectados con codigo estable y severidad.
+
+La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son responsabilidades separadas.
+
 ## Compatibilidad
 
-Una build puede conservar selecciones incompatibles. La compatibilidad CPU/motherboard se evalua aparte usando la regla existente de `src/modules/compatibility/cpu-motherboard.ts`.
+Una build puede conservar selecciones incompatibles. La compatibilidad CPU/motherboard se evalua usando la regla existente de `src/modules/compatibility/cpu-motherboard.ts`. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
 
 ## Fuera de scope
 
