@@ -1,15 +1,15 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard } from "@/modules/catalog/types";
+import type { ComponentId } from "@/modules/catalog/types";
 
-export type PcBuildSelection = {
-  cpu: Cpu | null;
-  motherboard: Motherboard | null;
-  gpu: Gpu | null;
-  ram: MemoryKit | null;
+export type PcBuild = {
+  cpuId: ComponentId | null;
+  motherboardId: ComponentId | null;
+  gpuId: ComponentId | null;
+  memoryKitId: ComponentId | null;
 };
 
-export const emptyBuildSelection: PcBuildSelection = {
-  cpu: null,
-  motherboard: null,
-  gpu: null,
-  ram: null,
+export const emptyBuild: PcBuild = {
+  cpuId: null,
+  motherboardId: null,
+  gpuId: null,
+  memoryKitId: null,
 };
