@@ -98,7 +98,7 @@ Pricing no se integra en `BuildEvaluation`. Compatibilidad responde si la build 
 
 ## Purchase Strategy Comparison
 
-`evaluateBuildPurchaseComparison(build, offers, sellers, currency, shippingQuotes)` compara dos estrategias de compra sobre la misma build y la misma moneda.
+`evaluateBuildPurchaseComparison(build, offers, sellers, currency, shippingQuotes)` compara tres estrategias de compra sobre la misma build y la misma moneda.
 
 Cada estrategia expone un costo:
 
@@ -119,7 +119,7 @@ type PurchaseCost = {
 
 La seleccion de ofertas mixed se hace por precio puro de componente antes de mirar shipping. Luego se determinan los `sellerIdsUsed`, ordenados por `sellerId`, y se suma una sola quote de shipping por seller usado.
 
-No hay optimizacion combinatoria. La fase no prueba combinaciones alternativas para minimizar `componentSubtotal + shippingTotal`; eso queda fuera de alcance. Por eso mixed puede pagar mas shipping que una tienda unica.
+Mixed no hace optimizacion combinatoria. Por eso puede pagar mas shipping que una tienda unica o que la estrategia optimizada.
 
 ### Single seller
 
@@ -142,6 +142,41 @@ Las opciones `partial`, `unpriced` o con shipping desconocido no pueden ganar la
 `effectiveDifferenceFromMixed` es `singleSeller.effectiveTotal - mixedCheapest.effectiveTotal`. Puede ser negativo: una tienda unica puede ganar contra mixed si mixed usa varios vendedores y paga mas envios.
 
 Una build vacia mantiene `mixedCheapest` como pricing completo con `componentSubtotal = 0`, `shippingTotal = 0` y `effectiveTotal = 0`, pero no genera opciones de vendedor unico y `cheapestCompleteSingleSeller = null`.
+
+### Optimized
+
+`optimized` responde otra pregunta: cual es la combinacion global de ofertas con menor costo efectivo.
+
+Para cada componente seleccionado se elige exactamente una oferta en la moneda solicitada. Luego:
+
+```txt
+componentSubtotal = suma de ofertas elegidas
+sellerIdsUsed = sellers unicos de esas ofertas
+shippingTotal = suma de shipping de esos sellers
+effectiveTotal = componentSubtotal + shippingTotal
+```
+
+Las combinaciones que usan algun seller sin shipping conocido en la moneda solicitada se descartan. Si algun componente seleccionado no tiene ofertas en la moneda solicitada, o si ninguna combinacion completa tiene shipping conocido, el resultado es:
+
+```ts
+{ status: "unavailable", missingPriceComponentIds: [...] }
+```
+
+Una build vacia es una solucion optimizada completa y deterministica con items vacios, sellers vacios y totales cero.
+
+El algoritmo elegido es busqueda exhaustiva cartesiana encapsulada en dominio. El catalogo demo actual genera como maximo `3 * 2 * 3 * 2 * 3 * 2 * 3 = 648` combinaciones para una build completa de 7 slots. Los fixtures de tests mas densos llegan a `6912` combinaciones. Ese espacio es trivial para esta fase y evita introducir Dijkstra, ILP, SAT solver, dynamic programming compleja, workers o dependencias externas.
+
+Tie-break de `optimized`:
+
+1. menor `effectiveTotal`
+2. menor `componentSubtotal`
+3. menor cantidad de sellers usados
+4. comparacion lexicografica de `sellerIdsUsed`
+5. comparacion lexicografica de `offerId` elegidos en orden de slots
+
+Si `optimized.status = "complete"` y mixed tiene `effectiveTotal` conocido, entonces `optimized.effectiveTotal <= mixed.effectiveTotal`, porque mixed es una combinacion dentro del espacio buscado. Si existe single seller completo con shipping conocido, tambien se cumple `optimized.effectiveTotal <= cheapestCompleteSingleSeller.effectiveTotal`.
+
+`optimizedSavingsVsMixed` usa signo de ahorro: `mixed.effectiveTotal - optimized.effectiveTotal`. Un valor positivo significa que optimized ahorra contra mixed. Esto es intencionalmente distinto de `effectiveDifferenceFromMixed`, que se expresa desde la perspectiva de single seller.
 
 ## Fuera de scope
 

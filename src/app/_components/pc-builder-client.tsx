@@ -456,7 +456,7 @@ function BuildPricingSummary({
   comparison: BuildPurchaseComparison;
   sellers: readonly Seller[];
 }) {
-  const { mixedCheapest, cheapestCompleteSingleSeller } = comparison;
+  const { mixedCheapest, cheapestCompleteSingleSeller, optimized } = comparison;
   const bestSingleSellerTotal = cheapestCompleteSingleSeller?.cost.effectiveTotal;
 
   return (
@@ -479,9 +479,17 @@ function BuildPricingSummary({
               : "Sin tienda completa"
           }
         />
+        <EvaluationFact
+          label="Compra optimizada"
+          value={
+            optimized.status === "complete"
+              ? formatMoney(optimized.purchase.effectiveTotal)
+              : "No disponible"
+          }
+        />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-3">
         <PurchaseCostSummary
           title="Mejor precio mezclando tiendas"
           cost={mixedCheapest.cost}
@@ -503,6 +511,10 @@ function BuildPricingSummary({
             <p className="mt-2 text-zinc-600">Sin tienda completa.</p>
           </div>
         )}
+        <OptimizedPurchaseSummary
+          optimized={optimized}
+          savingsVsMixed={comparison.optimizedSavingsVsMixed}
+        />
       </div>
 
       {cheapestCompleteSingleSeller ? (
@@ -536,6 +548,60 @@ function BuildPricingSummary({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+function OptimizedPurchaseSummary({
+  optimized,
+  savingsVsMixed,
+}: {
+  optimized: BuildPurchaseComparison["optimized"];
+  savingsVsMixed: Money | null;
+}) {
+  if (optimized.status === "unavailable") {
+    return (
+      <div>
+        <p className="font-medium text-zinc-900">Compra optimizada</p>
+        <p className="mt-2 text-zinc-600">No disponible.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <p className="font-medium text-zinc-900">Compra optimizada</p>
+      <dl className="mt-2 space-y-1 text-zinc-600">
+        <PurchaseCostRow
+          label="Precio de componentes"
+          value={formatMoney(optimized.purchase.componentSubtotal)}
+        />
+        <PurchaseCostRow
+          label="Envío"
+          value={formatMoney(optimized.purchase.shippingTotal)}
+        />
+        <PurchaseCostRow
+          label="Total efectivo"
+          value={formatMoney(optimized.purchase.effectiveTotal)}
+        />
+        <PurchaseCostRow
+          label="Tiendas"
+          value={String(optimized.purchase.sellerIdsUsed.length)}
+        />
+        <PurchaseCostRow
+          label="Ahorro vs mixed"
+          value={savingsVsMixed ? formatMoney(savingsVsMixed) : "No disponible"}
+        />
+      </dl>
+      {optimized.purchase.items.length > 0 ? (
+        <ul className="mt-3 space-y-1 text-sm text-zinc-600">
+          {optimized.purchase.items.map((item) => (
+            <li key={`${item.slot}-${item.offerId}`}>
+              {formatSlot(item.slot)} - {item.sellerId}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

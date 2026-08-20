@@ -5,8 +5,9 @@ import { addMoneyForCurrency, type Currency, type Money } from "./money";
 import type { ComponentOffer, Seller, SellerShippingQuote } from "./offers";
 
 export type BuildPricingStatus = "unpriced" | "partial" | "complete";
-export type PurchaseStrategy = "mixed-cheapest" | "single-seller";
+export type PurchaseStrategy = "mixed-cheapest" | "single-seller" | "optimized";
 export type ShippingStatus = "known" | "unknown";
+export type OptimizedPurchaseStatus = "complete" | "unavailable";
 
 export type BuildPricingSlot =
   | "cpu"
@@ -57,6 +58,33 @@ export type SellerBuildPricing = BuildPricing & {
   cost: PurchaseCost;
 };
 
+export type PurchaseShippingItem = {
+  sellerId: Seller["id"];
+  price: Money;
+};
+
+export type OptimizedPurchase = {
+  currency: Currency;
+  strategy: "optimized";
+  items: BuildPricingItem[];
+  componentSubtotal: Money;
+  sellerIdsUsed: Seller["id"][];
+  shippingItems: PurchaseShippingItem[];
+  shippingTotal: Money;
+  effectiveTotal: Money;
+};
+
+export type OptimizedPurchaseResult =
+  | {
+      status: "complete";
+      purchase: OptimizedPurchase;
+    }
+  | {
+      status: "unavailable";
+      currency: Currency;
+      missingPriceComponentIds: ComponentId[];
+    };
+
 export type BuildPurchaseComparison = {
   currency: Currency;
   mixedCheapest: MixedCheapestBuildPricing;
@@ -64,6 +92,8 @@ export type BuildPurchaseComparison = {
   cheapestCompleteSingleSellerByComponents: SellerBuildPricing | null;
   cheapestCompleteSingleSellerByEffectiveCost: SellerBuildPricing | null;
   cheapestCompleteSingleSeller: SellerBuildPricing | null;
+  optimized: OptimizedPurchaseResult;
+  optimizedSavingsVsMixed: Money | null;
 };
 
 const BUILD_PRICING_SLOTS = [
@@ -209,6 +239,12 @@ export function evaluateBuildPurchaseComparison(
       currency,
     ),
   };
+  const optimized = evaluateOptimizedPurchase(
+    build,
+    offers,
+    shippingQuotes,
+    currency,
+  );
   const selectedComponentIds = getSelectedComponentIds(build);
 
   if (selectedComponentIds.length === 0) {
@@ -219,6 +255,11 @@ export function evaluateBuildPurchaseComparison(
       cheapestCompleteSingleSellerByComponents: null,
       cheapestCompleteSingleSellerByEffectiveCost: null,
       cheapestCompleteSingleSeller: null,
+      optimized,
+      optimizedSavingsVsMixed: getOptimizedSavingsVsMixed(
+        optimized,
+        mixedCheapest.cost.effectiveTotal,
+      ),
     };
   }
 
@@ -250,6 +291,75 @@ export function evaluateBuildPurchaseComparison(
       getCheapestCompleteSingleSellerByComponents(singleSellerOptions),
     cheapestCompleteSingleSellerByEffectiveCost,
     cheapestCompleteSingleSeller: cheapestCompleteSingleSellerByEffectiveCost,
+    optimized,
+    optimizedSavingsVsMixed: getOptimizedSavingsVsMixed(
+      optimized,
+      mixedCheapest.cost.effectiveTotal,
+    ),
+  };
+}
+
+export function evaluateOptimizedPurchase(
+  build: PcBuild,
+  offers: readonly ComponentOffer[],
+  shippingQuotes: readonly SellerShippingQuote[],
+  currency: Currency,
+): OptimizedPurchaseResult {
+  const selectedOfferGroups = getSelectedOfferGroups(build, offers, currency);
+
+  if (selectedOfferGroups.missingPriceComponentIds.length > 0) {
+    return {
+      status: "unavailable",
+      currency,
+      missingPriceComponentIds: selectedOfferGroups.missingPriceComponentIds,
+    };
+  }
+
+  if (selectedOfferGroups.groups.length === 0) {
+    return {
+      status: "complete",
+      purchase: {
+        currency,
+        strategy: "optimized",
+        items: [],
+        componentSubtotal: { amountMinor: 0, currency },
+        sellerIdsUsed: [],
+        shippingItems: [],
+        shippingTotal: { amountMinor: 0, currency },
+        effectiveTotal: { amountMinor: 0, currency },
+      },
+    };
+  }
+
+  let bestPurchase: OptimizedPurchase | null = null;
+
+  for (const offerCombination of createOfferCombinations(selectedOfferGroups.groups)) {
+    const candidate = createOptimizedPurchaseCandidate(
+      offerCombination,
+      shippingQuotes,
+      currency,
+    );
+
+    if (!candidate) {
+      continue;
+    }
+
+    if (!bestPurchase || compareOptimizedPurchases(candidate, bestPurchase) < 0) {
+      bestPurchase = candidate;
+    }
+  }
+
+  if (!bestPurchase) {
+    return {
+      status: "unavailable",
+      currency,
+      missingPriceComponentIds: [],
+    };
+  }
+
+  return {
+    status: "complete",
+    purchase: bestPurchase,
   };
 }
 
@@ -279,6 +389,158 @@ function getSelectedComponentIds(build: PcBuild): ComponentId[] {
 
     return componentId ? [componentId] : [];
   });
+}
+
+function getSelectedOfferGroups(
+  build: PcBuild,
+  offers: readonly ComponentOffer[],
+  currency: Currency,
+) {
+  const groups: {
+    slot: BuildPricingSlot;
+    componentId: ComponentId;
+    offers: ComponentOffer[];
+  }[] = [];
+  const missingPriceComponentIds: ComponentId[] = [];
+
+  for (const [slot, buildKey] of BUILD_PRICING_SLOTS) {
+    const componentId = build[buildKey];
+
+    if (!componentId) {
+      continue;
+    }
+
+    const matchingOffers = offers
+      .filter(
+        (offer) =>
+          offer.componentId === componentId && offer.price.currency === currency,
+      )
+      .sort((left, right) => left.id.localeCompare(right.id));
+
+    if (matchingOffers.length === 0) {
+      missingPriceComponentIds.push(componentId);
+      continue;
+    }
+
+    groups.push({ slot, componentId, offers: matchingOffers });
+  }
+
+  return { groups, missingPriceComponentIds };
+}
+
+function* createOfferCombinations(
+  groups: readonly {
+    slot: BuildPricingSlot;
+    componentId: ComponentId;
+    offers: readonly ComponentOffer[];
+  }[],
+  groupIndex = 0,
+  selectedItems: BuildPricingItem[] = [],
+): Generator<BuildPricingItem[]> {
+  const group = groups[groupIndex];
+
+  if (!group) {
+    yield selectedItems;
+    return;
+  }
+
+  for (const offer of group.offers) {
+    yield* createOfferCombinations(groups, groupIndex + 1, [
+      ...selectedItems,
+      {
+        slot: group.slot,
+        componentId: group.componentId,
+        offerId: offer.id,
+        sellerId: offer.sellerId,
+        price: offer.price,
+      },
+    ]);
+  }
+}
+
+function createOptimizedPurchaseCandidate(
+  items: readonly BuildPricingItem[],
+  shippingQuotes: readonly SellerShippingQuote[],
+  currency: Currency,
+): OptimizedPurchase | null {
+  const sellerIdsUsed = getUniqueSellerIds(items);
+  const shippingItems: PurchaseShippingItem[] = [];
+
+  for (const sellerId of sellerIdsUsed) {
+    const quote = findShippingQuote(sellerId, shippingQuotes, currency);
+
+    if (!quote) {
+      return null;
+    }
+
+    shippingItems.push({ sellerId, price: quote.price });
+  }
+
+  const componentSubtotalResult = addMoneyForCurrency(
+    items.map((item) => item.price),
+    currency,
+  );
+  const shippingTotalResult = addMoneyForCurrency(
+    shippingItems.map((item) => item.price),
+    currency,
+  );
+
+  if (!componentSubtotalResult.ok || !shippingTotalResult.ok) {
+    throw new Error("Optimized purchase selected Money values with mixed currencies.");
+  }
+
+  return {
+    currency,
+    strategy: "optimized",
+    items: [...items],
+    componentSubtotal: componentSubtotalResult.total,
+    sellerIdsUsed,
+    shippingItems,
+    shippingTotal: shippingTotalResult.total,
+    effectiveTotal: addKnownMoney(
+      componentSubtotalResult.total,
+      shippingTotalResult.total,
+    ),
+  };
+}
+
+function compareOptimizedPurchases(
+  left: OptimizedPurchase,
+  right: OptimizedPurchase,
+) {
+  const effectiveDifference =
+    left.effectiveTotal.amountMinor - right.effectiveTotal.amountMinor;
+
+  if (effectiveDifference !== 0) {
+    return effectiveDifference;
+  }
+
+  const subtotalDifference =
+    left.componentSubtotal.amountMinor - right.componentSubtotal.amountMinor;
+
+  if (subtotalDifference !== 0) {
+    return subtotalDifference;
+  }
+
+  const sellerCountDifference =
+    left.sellerIdsUsed.length - right.sellerIdsUsed.length;
+
+  if (sellerCountDifference !== 0) {
+    return sellerCountDifference;
+  }
+
+  const sellerIdsComparison = left.sellerIdsUsed
+    .join("\u0000")
+    .localeCompare(right.sellerIdsUsed.join("\u0000"));
+
+  if (sellerIdsComparison !== 0) {
+    return sellerIdsComparison;
+  }
+
+  return left.items
+    .map((item) => item.offerId)
+    .join("\u0000")
+    .localeCompare(right.items.map((item) => item.offerId).join("\u0000"));
 }
 
 function getRelevantSellers(
@@ -463,4 +725,15 @@ function getDifferenceFromMixed(
     amountMinor: sellerTotal.amountMinor - mixedCheapestTotal.amountMinor,
     currency: sellerTotal.currency,
   };
+}
+
+function getOptimizedSavingsVsMixed(
+  optimized: OptimizedPurchaseResult,
+  mixedEffectiveTotal: Money | null,
+): Money | null {
+  if (optimized.status !== "complete" || !mixedEffectiveTotal) {
+    return null;
+  }
+
+  return getDifferenceFromMixed(mixedEffectiveTotal, optimized.purchase.effectiveTotal);
 }
