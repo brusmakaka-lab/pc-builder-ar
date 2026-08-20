@@ -48,7 +48,10 @@ describe("catalog fixtures", () => {
     expect(
       getAllGpus().every(
         (gpu) =>
-          gpu.vramGb > 0 && gpu.boardPowerWatts > 0 && gpu.lengthMm > 0,
+          gpu.vramGb > 0 &&
+          gpu.boardPowerWatts > 0 &&
+          gpu.lengthMm > 0 &&
+          gpu.powerConnectors.every((connector) => connector.count > 0),
       ),
     ).toBe(true);
   });
@@ -66,7 +69,12 @@ describe("catalog fixtures", () => {
 
   it("models PSUs with explicit wattage", () => {
     expect(
-      getAllPsus().every((psu) => psu.brand.length > 0 && psu.wattage > 0),
+      getAllPsus().every(
+        (psu) =>
+          psu.brand.length > 0 &&
+          psu.wattage > 0 &&
+          psu.gpuPowerConnectors.every((connector) => connector.count > 0),
+      ),
     ).toBe(true);
   });
 });

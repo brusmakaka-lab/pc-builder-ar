@@ -22,6 +22,7 @@ import {
 import {
   evaluateBuild,
   evaluateCpuMotherboardCompatibility,
+  evaluateGpuPsuConnectorCompatibility,
   evaluateMemoryMotherboardCompatibility,
   evaluatePsuPowerCompatibility,
 } from "./evaluate";
@@ -264,6 +265,7 @@ describe("evaluatePsuPowerCompatibility", () => {
           brand: "Test",
           model: "Small 400W",
           wattage: 400,
+          gpuPowerConnectors: [],
         } as const,
       ],
     };
@@ -307,6 +309,85 @@ describe("evaluatePsuPowerCompatibility", () => {
       cpuIds: catalog.cpus.map((cpu) => cpu.id),
       gpuIds: catalog.gpus.map((gpu) => gpu.id),
       psuIds: catalog.psus.map((psu) => psu.id),
+    }).toEqual(before);
+  });
+});
+
+describe("evaluateGpuPsuConnectorCompatibility", () => {
+  it("returns unknown when GPU is absent", () => {
+    const build = selectPsu(createEmptyBuild(), "psu-corsair-cx650-650w");
+
+    expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when PSU is absent", () => {
+    const build = selectGpu(createEmptyBuild(), "gpu-sapphire-pulse-rx-7600");
+
+    expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible when GPU and PSU connectors match", () => {
+    const build = selectPsu(
+      selectGpu(createEmptyBuild(), "gpu-sapphire-pulse-rx-7600"),
+      "psu-aerocool-cylon-500w",
+    );
+
+    expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toEqual({
+      compatible: true,
+      missingConnectors: [],
+    });
+  });
+
+  it("returns compatible for a GPU without dedicated power connectors", () => {
+    const build = selectPsu(
+      selectGpu(createEmptyBuild(), "gpu-msi-rtx-4060-ventus-2x"),
+      "psu-generic-400w",
+    );
+
+    expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toEqual({
+      compatible: true,
+      missingConnectors: [],
+    });
+  });
+
+  it("returns incompatible when PSU connectors are insufficient", () => {
+    const build = selectPsu(
+      selectGpu(createEmptyBuild(), "gpu-powercolor-fighter-rx-7800-xt"),
+      "psu-aerocool-cylon-500w",
+    );
+
+    expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "MISSING_GPU_POWER_CONNECTORS",
+        missingConnectors: [{ type: "pcie-8", count: 1 }],
+      },
+    });
+  });
+
+  it("does not mutate the original build", () => {
+    const build = selectPsu(
+      selectGpu(createEmptyBuild(), "gpu-powercolor-fighter-rx-7800-xt"),
+      "psu-corsair-cx650-650w",
+    );
+    const before = { ...build };
+
+    evaluateGpuPsuConnectorCompatibility(build, catalog);
+
+    expect(build).toEqual(before);
+  });
+
+  it("does not mutate the catalog", () => {
+    const before = {
+      gpuConnectors: catalog.gpus.map((gpu) => gpu.powerConnectors),
+      psuConnectors: catalog.psus.map((psu) => psu.gpuPowerConnectors),
+    };
+
+    evaluateGpuPsuConnectorCompatibility(createEmptyBuild(), catalog);
+
+    expect({
+      gpuConnectors: catalog.gpus.map((gpu) => gpu.powerConnectors),
+      psuConnectors: catalog.psus.map((psu) => psu.gpuPowerConnectors),
     }).toEqual(before);
   });
 });
@@ -461,7 +542,7 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-corsair-cx650-650w",
+      "psu-seasonic-focus-gx-750w",
     );
 
     expect(evaluateBuild(build, catalog)).toEqual({
@@ -552,11 +633,25 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-generic-400w",
+      "psu-test-400w-12vhpwr",
     );
+    const testCatalog = {
+      ...catalog,
+      psus: [
+        ...catalog.psus,
+        {
+          id: "psu-test-400w-12vhpwr",
+          kind: "psu",
+          brand: "Test",
+          model: "Native 12VHPWR 400W",
+          wattage: 400,
+          gpuPowerConnectors: [{ type: "12vhpwr", count: 1 }],
+        } as const,
+      ],
+    };
 
-    expect(evaluateBuild(build, catalog).compatibility).toBe("incompatible");
-    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+    expect(evaluateBuild(build, testCatalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(build, testCatalog).issues.map((issue) => issue.code)).toEqual(
       ["psu-insufficient-wattage"],
     );
   });
@@ -592,6 +687,12 @@ describe("evaluateBuild", () => {
         severity: "error",
         message: "La PSU entrega 400 W y la build requiere al menos 469 W estimados.",
       },
+      {
+        code: "psu-missing-gpu-power-connectors",
+        severity: "error",
+        message:
+          "La PSU no cubre los conectores dedicados requeridos por la GPU: 1x 12vhpwr.",
+      },
     ]);
   });
 
@@ -615,6 +716,7 @@ describe("evaluateBuild", () => {
         "cpu-motherboard-socket-mismatch",
         "memory-motherboard-type-mismatch",
         "psu-insufficient-wattage",
+        "psu-missing-gpu-power-connectors",
       ],
     );
   });
@@ -655,16 +757,30 @@ describe("evaluateBuild", () => {
             selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
             "motherboard-asus-prime-b760-plus",
           ),
-          "gpu-asus-prime-rtx-5070-oc",
+          "gpu-msi-rtx-4060-ventus-2x",
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-generic-400w",
+      "psu-test-250w",
     );
     const withCpu = selectCpu(baseBuild, "cpu-intel-core-i5-14600k");
+    const testCatalog = {
+      ...catalog,
+      psus: [
+        ...catalog.psus,
+        {
+          id: "psu-test-250w",
+          kind: "psu",
+          brand: "Test",
+          model: "Small 250W",
+          wattage: 250,
+          gpuPowerConnectors: [],
+        } as const,
+      ],
+    };
 
-    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
-    expect(evaluateBuild(withCpu, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(baseBuild, testCatalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(withCpu, testCatalog).compatibility).toBe("incompatible");
   });
 
   it("does not mutate the original build", () => {
@@ -749,6 +865,18 @@ describe("evaluateBuild", () => {
     expect(clientSource).not.toContain("tdpWatts");
     expect(clientSource).not.toContain("boardPowerWatts");
     expect(clientSource).not.toContain("requiredPsuWatts =");
+    expect(evaluateBuild).toBeTypeOf("function");
+  });
+
+  it("keeps GPU PSU connector matching centralized outside React", () => {
+    const clientSource = readFileSync(
+      join(process.cwd(), "src/app/_components/pc-builder-client.tsx"),
+      "utf8",
+    );
+
+    expect(clientSource).not.toContain("powerConnectors");
+    expect(clientSource).not.toContain("gpuPowerConnectors");
+    expect(clientSource).not.toContain("pcie-");
     expect(evaluateBuild).toBeTypeOf("function");
   });
 });

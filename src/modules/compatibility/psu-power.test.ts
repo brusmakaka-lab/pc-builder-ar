@@ -29,6 +29,7 @@ const gpu = {
   vramGb: 16,
   boardPowerWatts: 263,
   lengthMm: 303,
+  powerConnectors: [{ type: "pcie-8", count: 2 }],
 } as const;
 
 describe("checkPsuPowerCompatibility", () => {
@@ -48,6 +49,7 @@ describe("checkPsuPowerCompatibility", () => {
         brand: "Test",
         model: "Boundary 479W",
         wattage: 479,
+        gpuPowerConnectors: [],
       }),
     ).toEqual({
       compatible: true,
@@ -65,6 +67,7 @@ describe("checkPsuPowerCompatibility", () => {
         brand: "Corsair",
         model: "CX650",
         wattage: 650,
+        gpuPowerConnectors: [],
       }).compatible,
     ).toBe(true);
   });
@@ -77,6 +80,7 @@ describe("checkPsuPowerCompatibility", () => {
         brand: "Test",
         model: "Small 450W",
         wattage: 450,
+        gpuPowerConnectors: [],
       }),
     ).toEqual({
       compatible: false,

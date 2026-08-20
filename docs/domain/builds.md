@@ -37,11 +37,12 @@ La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son re
 
 Una build puede conservar selecciones incompatibles. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
 
-La evaluacion conoce tres reglas:
+La evaluacion conoce cuatro reglas:
 
 - CPU/motherboard: `cpu.socket` debe coincidir con `motherboard.socket`.
 - RAM/motherboard: `memoryKit.memoryType` debe coincidir con `motherboard.memoryType`.
 - PSU/potencia: `psu.wattage` debe cubrir la potencia minima estimada para CPU y GPU.
+- GPU/PSU conectores: la PSU debe poder asignar conectores de alimentacion dedicada para todos los requerimientos de la GPU.
 
 Las reglas viven en `src/modules/compatibility/` y `evaluateBuild` solo las orquesta contra los IDs seleccionados. La UI consume `BuildEvaluation`; no decide compatibilidad por su cuenta.
 
@@ -65,6 +66,12 @@ requiredPsuWatts = ceil(estimatedLoadWatts * 1.25)
 
 Esta es una aproximacion de dominio para screening inicial: combina TDP de CPU y board power de GPU, no una medicion electrica real ni una recomendacion final de compra. Conectores, calidad de PSU, certificaciones, eficiencia, transients y estandares ATX quedan fuera de scope.
 
+El check de conectores GPU/PSU es independiente del check de potencia. Una PSU puede fallar potencia, conectores o ambos, y cada incompatibilidad se reporta como issue separado.
+
+Los conectores se modelan como requisitos/capacidades estructuradas `{ type, count }`. `powerConnectors: []` en una GPU significa que no requiere alimentacion dedicada y el check de conectores pasa cuando hay GPU y PSU seleccionadas.
+
+Una capacidad `pcie-6-plus-2` de la PSU puede alimentar un requisito `pcie-6` o `pcie-8`, pero un conector disponible solo puede cubrir un requisito. No se modelan adaptadores: multiples PCIe 8-pin no satisfacen automaticamente un requisito `12vhpwr`, y `12vhpwr`/`12v-2x6` no se convierten entre si.
+
 ## GPU y motherboard
 
 La compatibilidad estructural GPU/motherboard todavia no se evalua porque el catalogo actual no modela la interfaz de conexion de la GPU ni el slot de expansion de la motherboard.
@@ -75,4 +82,4 @@ La generacion PCIe no debe tratarse como incompatibilidad por defecto: una difer
 
 ## Fuera de scope
 
-No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, conectores de PSU, calidad de PSU, gabinete, cooling, benchmarks ni recomendaciones.
+No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, calidad de PSU, gabinete, cooling, benchmarks ni recomendaciones.

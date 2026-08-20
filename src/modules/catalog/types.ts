@@ -5,6 +5,17 @@ export type CpuSocket = "AM4" | "AM5" | "LGA1700";
 export type MemoryType = "DDR4" | "DDR5";
 export type MotherboardFormFactor = "ATX" | "MicroATX";
 export type GpuChipBrand = "AMD" | "NVIDIA";
+export type GpuPowerConnectorType =
+  | "pcie-6"
+  | "pcie-8"
+  | "pcie-6-plus-2"
+  | "12vhpwr"
+  | "12v-2x6";
+
+export type PowerConnectorRequirement = {
+  type: GpuPowerConnectorType;
+  count: number;
+};
 
 export type CatalogComponentKind =
   | "cpu"
@@ -47,6 +58,7 @@ export type Gpu = BaseComponent & {
   vramGb: number;
   boardPowerWatts: number;
   lengthMm: number;
+  powerConnectors: readonly PowerConnectorRequirement[];
 };
 
 export type MemoryKit = BaseComponent & {
@@ -60,6 +72,7 @@ export type MemoryKit = BaseComponent & {
 export type Psu = BaseComponent & {
   kind: "psu";
   wattage: number;
+  gpuPowerConnectors: readonly PowerConnectorRequirement[];
 };
 
 export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit | Psu;

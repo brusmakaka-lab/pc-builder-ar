@@ -124,6 +124,7 @@ export const gpus = [
     vramGb: 12,
     boardPowerWatts: 250,
     lengthMm: 304,
+    powerConnectors: [{ type: "12vhpwr", count: 1 }],
   },
   {
     id: "gpu-msi-rtx-4060-ventus-2x",
@@ -137,6 +138,7 @@ export const gpus = [
     vramGb: 8,
     boardPowerWatts: 115,
     lengthMm: 199,
+    powerConnectors: [],
   },
   {
     id: "gpu-sapphire-pulse-rx-7600",
@@ -150,6 +152,7 @@ export const gpus = [
     vramGb: 8,
     boardPowerWatts: 165,
     lengthMm: 240,
+    powerConnectors: [{ type: "pcie-8", count: 1 }],
   },
   {
     id: "gpu-powercolor-fighter-rx-7800-xt",
@@ -163,6 +166,7 @@ export const gpus = [
     vramGb: 16,
     boardPowerWatts: 263,
     lengthMm: 303,
+    powerConnectors: [{ type: "pcie-8", count: 2 }],
   },
   {
     id: "gpu-gigabyte-rtx-4070-super-windforce-oc",
@@ -176,6 +180,7 @@ export const gpus = [
     vramGb: 12,
     boardPowerWatts: 220,
     lengthMm: 261,
+    powerConnectors: [{ type: "pcie-8", count: 1 }],
   },
 ] as const satisfies readonly Gpu[];
 
@@ -239,6 +244,7 @@ export const psus = [
     brand: "Generic",
     model: "Office 400W",
     wattage: 400,
+    gpuPowerConnectors: [],
   },
   {
     id: "psu-aerocool-cylon-500w",
@@ -246,6 +252,7 @@ export const psus = [
     brand: "Aerocool",
     model: "Cylon 500W",
     wattage: 500,
+    gpuPowerConnectors: [{ type: "pcie-6-plus-2", count: 1 }],
   },
   {
     id: "psu-corsair-cx650-650w",
@@ -253,6 +260,7 @@ export const psus = [
     brand: "Corsair",
     model: "CX650",
     wattage: 650,
+    gpuPowerConnectors: [{ type: "pcie-6-plus-2", count: 2 }],
   },
   {
     id: "psu-seasonic-focus-gx-750w",
@@ -260,5 +268,9 @@ export const psus = [
     brand: "Seasonic",
     model: "Focus GX-750",
     wattage: 750,
+    gpuPowerConnectors: [
+      { type: "pcie-6-plus-2", count: 2 },
+      { type: "12vhpwr", count: 1 },
+    ],
   },
 ] as const satisfies readonly Psu[];

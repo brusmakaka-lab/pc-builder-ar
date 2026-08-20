@@ -8,6 +8,10 @@ import {
   type MemoryMotherboardCompatibility,
 } from "../compatibility/memory-motherboard";
 import {
+  checkGpuPsuConnectorCompatibility,
+  type GpuPsuConnectorCompatibility,
+} from "../compatibility/gpu-psu-connectors";
+import {
   checkPsuPowerCompatibility,
   type PsuPowerCompatibility,
 } from "../compatibility/psu-power";
@@ -32,7 +36,8 @@ export type BuildIssue = {
   code:
     | "cpu-motherboard-socket-mismatch"
     | "memory-motherboard-type-mismatch"
-    | "psu-insufficient-wattage";
+    | "psu-insufficient-wattage"
+    | "psu-missing-gpu-power-connectors";
   severity: "error";
   message: string;
 };
@@ -62,6 +67,11 @@ export type MemoryMotherboardCompatibilityCatalog = {
 
 export type PsuPowerCompatibilityCatalog = {
   cpus: readonly Cpu[];
+  gpus: readonly Gpu[];
+  psus: readonly Psu[];
+};
+
+export type GpuPsuConnectorCompatibilityCatalog = {
   gpus: readonly Gpu[];
   psus: readonly Psu[];
 };
@@ -133,6 +143,24 @@ export function evaluatePsuPowerCompatibility(
   return checkPsuPowerCompatibility(cpu, gpu, psu);
 }
 
+export function evaluateGpuPsuConnectorCompatibility(
+  build: PcBuild,
+  catalog: GpuPsuConnectorCompatibilityCatalog,
+): GpuPsuConnectorCompatibility | null {
+  if (!build.gpuId || !build.psuId) {
+    return null;
+  }
+
+  const gpu = catalog.gpus.find((item) => item.id === build.gpuId);
+  const psu = catalog.psus.find((item) => item.id === build.psuId);
+
+  if (!gpu || !psu) {
+    return null;
+  }
+
+  return checkGpuPsuConnectorCompatibility(gpu, psu);
+}
+
 export function evaluateBuild(
   build: PcBuild,
   catalog: BuildEvaluationCatalog,
@@ -148,10 +176,15 @@ export function evaluateBuild(
     catalog,
   );
   const psuPowerCompatibility = evaluatePsuPowerCompatibility(build, catalog);
+  const gpuPsuConnectorCompatibility = evaluateGpuPsuConnectorCompatibility(
+    build,
+    catalog,
+  );
   const issues = getBuildIssues(
     cpuMotherboardCompatibility,
     memoryMotherboardCompatibility,
     psuPowerCompatibility,
+    gpuPsuConnectorCompatibility,
   );
 
   return {
@@ -160,6 +193,7 @@ export function evaluateBuild(
       cpuMotherboardCompatibility,
       memoryMotherboardCompatibility,
       psuPowerCompatibility,
+      gpuPsuConnectorCompatibility,
     ]),
     missingComponents,
     issues,
@@ -219,6 +253,7 @@ function getBuildCompatibilityStatus(
     | CpuMotherboardCompatibility
     | MemoryMotherboardCompatibility
     | PsuPowerCompatibility
+    | GpuPsuConnectorCompatibility
     | null
   )[],
 ): BuildCompatibilityStatus {
@@ -241,6 +276,7 @@ function getBuildIssues(
   cpuMotherboardCompatibility: CpuMotherboardCompatibility | null,
   memoryMotherboardCompatibility: MemoryMotherboardCompatibility | null,
   psuPowerCompatibility: PsuPowerCompatibility | null,
+  gpuPsuConnectorCompatibility: GpuPsuConnectorCompatibility | null,
 ): BuildIssue[] {
   const issues: BuildIssue[] = [];
 
@@ -268,7 +304,23 @@ function getBuildIssues(
     });
   }
 
+  if (gpuPsuConnectorCompatibility?.compatible === false) {
+    issues.push({
+      code: "psu-missing-gpu-power-connectors",
+      severity: "error",
+      message: `La PSU no cubre los conectores dedicados requeridos por la GPU: ${formatMissingConnectors(gpuPsuConnectorCompatibility.reason.missingConnectors)}.`,
+    });
+  }
+
   return issues;
+}
+
+function formatMissingConnectors(
+  missingConnectors: readonly { type: string; count: number }[],
+) {
+  return missingConnectors
+    .map((connector) => `${connector.count}x ${connector.type}`)
+    .join(", ");
 }
 
 function getBuildPowerEvaluation(
