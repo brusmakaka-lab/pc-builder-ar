@@ -37,6 +37,28 @@ type ComponentOffer = {
 
 `Seller` se mantiene minimo: `id` y `name`. No hay URLs, stock, envios, ubicacion, rating ni checkout.
 
+## Shipping
+
+Shipping se modela como dato separado del vendedor y de la oferta:
+
+```ts
+type SellerShippingQuote = {
+  sellerId: string;
+  price: Money;
+};
+```
+
+La semantica de esta fase es fija y deterministica:
+
+- el costo se cobra una sola vez por pedido a cada seller usado;
+- dos componentes comprados al mismo seller pagan un solo shipping;
+- mixed cheapest suma el shipping de cada seller distinto usado;
+- `amountMinor = 0` es envio gratis explicito;
+- ausencia de quote en la moneda solicitada significa shipping desconocido;
+- una quote en otra moneda se ignora y no dispara conversion FX.
+
+La ausencia de dato nunca se interpreta como cero. Si un seller usado no tiene shipping conocido, `shippingStatus = "unknown"` y el costo efectivo final queda en `null`.
+
 ## Seleccion de oferta
 
 La estrategia temporal es determinista:
@@ -76,13 +98,28 @@ Pricing no se integra en `BuildEvaluation`. Compatibilidad responde si la build 
 
 ## Purchase Strategy Comparison
 
-`evaluateBuildPurchaseComparison(build, offers, sellers, currency)` compara dos estrategias de compra sobre la misma build y la misma moneda.
+`evaluateBuildPurchaseComparison(build, offers, sellers, currency, shippingQuotes)` compara dos estrategias de compra sobre la misma build y la misma moneda.
+
+Cada estrategia expone un costo:
+
+```ts
+type PurchaseCost = {
+  componentSubtotal: Money;
+  shippingTotal: Money | null;
+  effectiveTotal: Money | null;
+  shippingStatus: "known" | "unknown";
+};
+```
+
+`componentSubtotal + shippingTotal = effectiveTotal` solo cuando el pricing de componentes esta completo y el shipping de todos los sellers usados es conocido.
 
 ### Mixed cheapest
 
 `mixedCheapest` reutiliza `evaluateBuildPricing`. Para cada componente seleccionado elige la oferta mas barata disponible en la moneda solicitada, aunque eso mezcle vendedores distintos.
 
-Esta estrategia sirve como referencia deterministica de menor precio con los datos cargados. No representa necesariamente una compra real porque no modela envios, stock, retiro, descuentos por vendedor, cuotas ni checkout.
+La seleccion de ofertas mixed se hace por precio puro de componente antes de mirar shipping. Luego se determinan los `sellerIdsUsed`, ordenados por `sellerId`, y se suma una sola quote de shipping por seller usado.
+
+No hay optimizacion combinatoria. La fase no prueba combinaciones alternativas para minimizar `componentSubtotal + shippingTotal`; eso queda fuera de alcance. Por eso mixed puede pagar mas shipping que una tienda unica.
 
 ### Single seller
 
@@ -90,11 +127,21 @@ Esta estrategia sirve como referencia deterministica de menor precio con los dat
 
 Un vendedor es relevante si tiene al menos una oferta en la moneda solicitada para alguno de los componentes seleccionados. Las opciones se ordenan por `seller.name` y luego por `seller.id` para mantener salida estable.
 
-`cheapestCompleteSingleSeller` solo puede salir de opciones con `status = "complete"` y `total` definido. Las opciones `partial` o `unpriced` no pueden ganar aunque tengan subtotal menor. Si hay empate de total entre vendedores completos, gana el `sellerId` lexicograficamente menor.
+Un seller completo con shipping conocido tiene `effectiveTotal = componentSubtotal + shippingTotal`. Si el seller esta completo pero su shipping es desconocido, `effectiveTotal = null`.
+
+`cheapestCompleteSingleSellerByComponents` preserva la lectura por subtotal de componentes. `cheapestCompleteSingleSellerByEffectiveCost` y `cheapestCompleteSingleSeller` priorizan costo efectivo.
+
+Las opciones `partial`, `unpriced` o con shipping desconocido no pueden ganar la recomendacion efectiva. El desempate de costo efectivo es:
+
+1. menor `effectiveTotal`
+2. menor `componentSubtotal`
+3. menor `sellerId` lexicograficamente
 
 `differenceFromMixed` es `singleSeller.total - mixedCheapest.total` en la misma moneda. Si falta alguno de los totales, queda en `null`.
 
-Una build vacia mantiene `mixedCheapest` como pricing completo con total cero, pero no genera opciones de vendedor unico y `cheapestCompleteSingleSeller = null`.
+`effectiveDifferenceFromMixed` es `singleSeller.effectiveTotal - mixedCheapest.effectiveTotal`. Puede ser negativo: una tienda unica puede ganar contra mixed si mixed usa varios vendedores y paga mas envios.
+
+Una build vacia mantiene `mixedCheapest` como pricing completo con `componentSubtotal = 0`, `shippingTotal = 0` y `effectiveTotal = 0`, pero no genera opciones de vendedor unico y `cheapestCompleteSingleSeller = null`.
 
 ## Fuera de scope
 

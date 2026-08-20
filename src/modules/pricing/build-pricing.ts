@@ -2,10 +2,11 @@ import type { ComponentId } from "@/modules/catalog/types";
 import type { PcBuild } from "@/modules/builds/types";
 
 import { addMoneyForCurrency, type Currency, type Money } from "./money";
-import type { ComponentOffer, Seller } from "./offers";
+import type { ComponentOffer, Seller, SellerShippingQuote } from "./offers";
 
 export type BuildPricingStatus = "unpriced" | "partial" | "complete";
 export type PurchaseStrategy = "mixed-cheapest" | "single-seller";
+export type ShippingStatus = "known" | "unknown";
 
 export type BuildPricingSlot =
   | "cpu"
@@ -34,17 +35,34 @@ export type BuildPricing = {
   status: BuildPricingStatus;
 };
 
+export type PurchaseCost = {
+  componentSubtotal: Money;
+  shippingTotal: Money | null;
+  effectiveTotal: Money | null;
+  shippingStatus: ShippingStatus;
+};
+
+export type MixedCheapestBuildPricing = BuildPricing & {
+  strategy: "mixed-cheapest";
+  sellerIdsUsed: Seller["id"][];
+  cost: PurchaseCost;
+};
+
 export type SellerBuildPricing = BuildPricing & {
   strategy: "single-seller";
   sellerId: Seller["id"];
   sellerName: Seller["name"] | null;
   differenceFromMixed: Money | null;
+  effectiveDifferenceFromMixed: Money | null;
+  cost: PurchaseCost;
 };
 
 export type BuildPurchaseComparison = {
   currency: Currency;
-  mixedCheapest: BuildPricing & { strategy: "mixed-cheapest" };
+  mixedCheapest: MixedCheapestBuildPricing;
   singleSellerOptions: SellerBuildPricing[];
+  cheapestCompleteSingleSellerByComponents: SellerBuildPricing | null;
+  cheapestCompleteSingleSellerByEffectiveCost: SellerBuildPricing | null;
   cheapestCompleteSingleSeller: SellerBuildPricing | null;
 };
 
@@ -145,9 +163,17 @@ export function evaluateSellerBuildPricing(
   seller: Seller,
   currency: Currency,
   mixedCheapestTotal: Money | null = null,
+  shippingQuotes: readonly SellerShippingQuote[] = [],
+  mixedCheapestEffectiveTotal: Money | null = null,
 ): SellerBuildPricing {
   const sellerOffers = offers.filter((offer) => offer.sellerId === seller.id);
   const pricing = evaluateBuildPricing(build, sellerOffers, currency);
+  const cost = calculatePurchaseCost(
+    pricing,
+    getUniqueSellerIds(pricing.items),
+    shippingQuotes,
+    currency,
+  );
 
   return {
     ...pricing,
@@ -155,6 +181,11 @@ export function evaluateSellerBuildPricing(
     sellerId: seller.id,
     sellerName: seller.name,
     differenceFromMixed: getDifferenceFromMixed(pricing.total, mixedCheapestTotal),
+    effectiveDifferenceFromMixed: getDifferenceFromMixed(
+      cost.effectiveTotal,
+      mixedCheapestEffectiveTotal,
+    ),
+    cost,
   };
 }
 
@@ -163,10 +194,20 @@ export function evaluateBuildPurchaseComparison(
   offers: readonly ComponentOffer[],
   sellers: readonly Seller[],
   currency: Currency,
+  shippingQuotes: readonly SellerShippingQuote[] = [],
 ): BuildPurchaseComparison {
-  const mixedCheapest = {
-    ...evaluateBuildPricing(build, offers, currency),
+  const mixedCheapestPricing = evaluateBuildPricing(build, offers, currency);
+  const mixedCheapestSellerIds = getUniqueSellerIds(mixedCheapestPricing.items);
+  const mixedCheapest: MixedCheapestBuildPricing = {
+    ...mixedCheapestPricing,
     strategy: "mixed-cheapest" as const,
+    sellerIdsUsed: mixedCheapestSellerIds,
+    cost: calculatePurchaseCost(
+      mixedCheapestPricing,
+      mixedCheapestSellerIds,
+      shippingQuotes,
+      currency,
+    ),
   };
   const selectedComponentIds = getSelectedComponentIds(build);
 
@@ -175,6 +216,8 @@ export function evaluateBuildPurchaseComparison(
       currency,
       mixedCheapest,
       singleSellerOptions: [],
+      cheapestCompleteSingleSellerByComponents: null,
+      cheapestCompleteSingleSellerByEffectiveCost: null,
       cheapestCompleteSingleSeller: null,
     };
   }
@@ -192,15 +235,21 @@ export function evaluateBuildPurchaseComparison(
       seller,
       currency,
       mixedCheapest.total,
+      shippingQuotes,
+      mixedCheapest.cost.effectiveTotal,
     ),
   );
+  const cheapestCompleteSingleSellerByEffectiveCost =
+    getCheapestCompleteSingleSellerByEffectiveCost(singleSellerOptions);
 
   return {
     currency,
     mixedCheapest,
     singleSellerOptions,
-    cheapestCompleteSingleSeller:
-      getCheapestCompleteSingleSeller(singleSellerOptions),
+    cheapestCompleteSingleSellerByComponents:
+      getCheapestCompleteSingleSellerByComponents(singleSellerOptions),
+    cheapestCompleteSingleSellerByEffectiveCost,
+    cheapestCompleteSingleSeller: cheapestCompleteSingleSellerByEffectiveCost,
   };
 }
 
@@ -265,7 +314,77 @@ function getRelevantSellers(
     });
 }
 
-function getCheapestCompleteSingleSeller(
+function getUniqueSellerIds(items: readonly BuildPricingItem[]) {
+  return [...new Set(items.map((item) => item.sellerId))].sort((left, right) =>
+    left.localeCompare(right),
+  );
+}
+
+function calculatePurchaseCost(
+  pricing: BuildPricing,
+  sellerIdsUsed: readonly Seller["id"][],
+  shippingQuotes: readonly SellerShippingQuote[],
+  currency: Currency,
+): PurchaseCost {
+  const shippingPrices: Money[] = [];
+
+  for (const sellerId of sellerIdsUsed) {
+    const quote = findShippingQuote(sellerId, shippingQuotes, currency);
+
+    if (!quote) {
+      return {
+        componentSubtotal: pricing.pricedSubtotal,
+        shippingTotal: null,
+        effectiveTotal: null,
+        shippingStatus: "unknown",
+      };
+    }
+
+    shippingPrices.push(quote.price);
+  }
+
+  const shippingTotalResult = addMoneyForCurrency(shippingPrices, currency);
+
+  if (!shippingTotalResult.ok) {
+    throw new Error("Purchase cost selected shipping quotes with mixed currencies.");
+  }
+
+  const effectiveTotal =
+    pricing.total && pricing.status === "complete"
+      ? addKnownMoney(pricing.total, shippingTotalResult.total)
+      : null;
+
+  return {
+    componentSubtotal: pricing.pricedSubtotal,
+    shippingTotal: shippingTotalResult.total,
+    effectiveTotal,
+    shippingStatus: "known",
+  };
+}
+
+function findShippingQuote(
+  sellerId: Seller["id"],
+  shippingQuotes: readonly SellerShippingQuote[],
+  currency: Currency,
+) {
+  return (
+    shippingQuotes.find(
+      (quote) => quote.sellerId === sellerId && quote.price.currency === currency,
+    ) ?? null
+  );
+}
+
+function addKnownMoney(left: Money, right: Money): Money {
+  const result = addMoneyForCurrency([left, right], left.currency);
+
+  if (!result.ok) {
+    throw new Error("Cannot add Money values with different currencies.");
+  }
+
+  return result.total;
+}
+
+function getCheapestCompleteSingleSellerByComponents(
   sellerPricings: readonly SellerBuildPricing[],
 ): SellerBuildPricing | null {
   const completePricings = sellerPricings.filter(
@@ -282,6 +401,44 @@ function getCheapestCompleteSingleSeller(
 
     if (totalDifference !== 0) {
       return totalDifference;
+    }
+
+    return left.sellerId.localeCompare(right.sellerId);
+  });
+
+  return cheapestComplete ?? null;
+}
+
+function getCheapestCompleteSingleSellerByEffectiveCost(
+  sellerPricings: readonly SellerBuildPricing[],
+): SellerBuildPricing | null {
+  const completePricings = sellerPricings.filter(
+    (pricing) =>
+      pricing.status === "complete" &&
+      pricing.total &&
+      pricing.cost.shippingStatus === "known" &&
+      pricing.cost.effectiveTotal,
+  );
+
+  if (completePricings.length === 0) {
+    return null;
+  }
+
+  const [cheapestComplete] = [...completePricings].sort((left, right) => {
+    const effectiveDifference =
+      (left.cost.effectiveTotal?.amountMinor ?? 0) -
+      (right.cost.effectiveTotal?.amountMinor ?? 0);
+
+    if (effectiveDifference !== 0) {
+      return effectiveDifference;
+    }
+
+    const componentSubtotalDifference =
+      left.cost.componentSubtotal.amountMinor -
+      right.cost.componentSubtotal.amountMinor;
+
+    if (componentSubtotalDifference !== 0) {
+      return componentSubtotalDifference;
     }
 
     return left.sellerId.localeCompare(right.sellerId);

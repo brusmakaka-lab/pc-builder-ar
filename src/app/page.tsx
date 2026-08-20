@@ -9,6 +9,7 @@ import {
 } from "@/modules/catalog/catalog";
 import {
   getAllComponentOffers,
+  getAllSellerShippingQuotes,
   getAllSellers,
 } from "@/modules/pricing/offers";
 
@@ -24,6 +25,7 @@ export default function Home() {
   const cases = getAllCases();
   const offers = getAllComponentOffers();
   const sellers = getAllSellers();
+  const shippingQuotes = getAllSellerShippingQuotes();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12 sm:py-16">
@@ -46,6 +48,7 @@ export default function Home() {
         cases={cases}
         offers={offers}
         sellers={sellers}
+        shippingQuotes={shippingQuotes}
       />
     </main>
   );

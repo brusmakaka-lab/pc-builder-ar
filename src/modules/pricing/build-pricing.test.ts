@@ -18,7 +18,7 @@ import {
   evaluateSellerBuildPricing,
   selectOfferForComponent,
 } from "./build-pricing";
-import type { ComponentOffer, Seller } from "./offers";
+import type { ComponentOffer, Seller, SellerShippingQuote } from "./offers";
 
 const sellers = [
   { id: "seller-a", name: "Alpha Store" },
@@ -192,6 +192,29 @@ const offers = [
     price: { amountMinor: 29999, currency: "USD" },
   },
 ] as const satisfies readonly ComponentOffer[];
+
+const shippingQuotes = [
+  {
+    sellerId: "seller-a",
+    price: { amountMinor: 10000, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-b",
+    price: { amountMinor: 80000, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-c",
+    price: { amountMinor: 0, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-d",
+    price: { amountMinor: 10000, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-a",
+    price: { amountMinor: 999, currency: "USD" },
+  },
+] as const satisfies readonly SellerShippingQuote[];
 
 function createCompleteBuild() {
   return selectCpuCooler(
@@ -368,6 +391,8 @@ describe("evaluateSellerBuildPricing", () => {
         offers,
         sellers[0],
         "ARS",
+        null,
+        shippingQuotes,
       ),
     ).toMatchObject({
       sellerId: "seller-a",
@@ -375,6 +400,12 @@ describe("evaluateSellerBuildPricing", () => {
       pricedSubtotal: { amountMinor: 1090000, currency: "ARS" },
       total: { amountMinor: 1090000, currency: "ARS" },
       missingPriceComponentIds: [],
+      cost: {
+        componentSubtotal: { amountMinor: 1090000, currency: "ARS" },
+        shippingTotal: { amountMinor: 10000, currency: "ARS" },
+        effectiveTotal: { amountMinor: 1100000, currency: "ARS" },
+        shippingStatus: "known",
+      },
     });
   });
 
@@ -385,6 +416,8 @@ describe("evaluateSellerBuildPricing", () => {
         offers,
         sellers[1],
         "ARS",
+        null,
+        shippingQuotes,
       ),
     ).toMatchObject({
       sellerId: "seller-b",
@@ -392,6 +425,11 @@ describe("evaluateSellerBuildPricing", () => {
       pricedSubtotal: { amountMinor: 720000, currency: "ARS" },
       total: null,
       missingPriceComponentIds: ["motherboard-a", "memory-a", "case-a"],
+      cost: {
+        shippingTotal: { amountMinor: 80000, currency: "ARS" },
+        effectiveTotal: null,
+        shippingStatus: "known",
+      },
     });
   });
 
@@ -402,6 +440,8 @@ describe("evaluateSellerBuildPricing", () => {
         offers,
         sellers[4],
         "ARS",
+        null,
+        shippingQuotes,
       ),
     ).toMatchObject({
       sellerId: "seller-z",
@@ -409,6 +449,11 @@ describe("evaluateSellerBuildPricing", () => {
       pricedSubtotal: { amountMinor: 0, currency: "ARS" },
       total: null,
       missingPriceComponentIds: ["cpu-a"],
+      cost: {
+        shippingTotal: { amountMinor: 0, currency: "ARS" },
+        effectiveTotal: null,
+        shippingStatus: "known",
+      },
     });
   });
 
@@ -419,10 +464,101 @@ describe("evaluateSellerBuildPricing", () => {
         offers,
         sellers[2],
         "ARS",
+        null,
+        shippingQuotes,
       ),
     ).toMatchObject({
       status: "unpriced",
       missingPriceComponentIds: ["gpu-usd-only"],
+    });
+  });
+
+  it("applies fixed shipping once for two components from the same seller", () => {
+    const build = selectMotherboard(
+      selectCpu(createEmptyBuild(), "cpu-a"),
+      "motherboard-a",
+    );
+
+    expect(
+      evaluateSellerBuildPricing(
+        build,
+        offers,
+        sellers[0],
+        "ARS",
+        null,
+        shippingQuotes,
+      ),
+    ).toMatchObject({
+      cost: {
+        componentSubtotal: { amountMinor: 320000, currency: "ARS" },
+        shippingTotal: { amountMinor: 10000, currency: "ARS" },
+        effectiveTotal: { amountMinor: 330000, currency: "ARS" },
+      },
+    });
+  });
+
+  it("treats explicit zero shipping as known", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        selectCpu(createEmptyBuild(), "cpu-a"),
+        offers,
+        sellers[2],
+        "ARS",
+        null,
+        shippingQuotes,
+      ),
+    ).toMatchObject({
+      sellerId: "seller-c",
+      cost: {
+        shippingTotal: { amountMinor: 0, currency: "ARS" },
+        effectiveTotal: { amountMinor: 110000, currency: "ARS" },
+        shippingStatus: "known",
+      },
+    });
+  });
+
+  it("marks shipping as unknown when a used seller has no quote", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        selectCpu(createEmptyBuild(), "cpu-a"),
+        offers,
+        sellers[1],
+        "ARS",
+        null,
+        [],
+      ),
+    ).toMatchObject({
+      sellerId: "seller-b",
+      status: "complete",
+      cost: {
+        shippingTotal: null,
+        effectiveTotal: null,
+        shippingStatus: "unknown",
+      },
+    });
+  });
+
+  it("ignores shipping quotes in another currency", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        selectCpu(createEmptyBuild(), "cpu-a"),
+        offers,
+        sellers[0],
+        "ARS",
+        null,
+        [
+          {
+            sellerId: "seller-a",
+            price: { amountMinor: 999, currency: "USD" },
+          },
+        ],
+      ),
+    ).toMatchObject({
+      cost: {
+        shippingTotal: null,
+        effectiveTotal: null,
+        shippingStatus: "unknown",
+      },
     });
   });
 });
@@ -434,6 +570,7 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(comparison.mixedCheapest).toMatchObject({
@@ -441,6 +578,9 @@ describe("evaluateBuildPurchaseComparison", () => {
       total: { amountMinor: 1060000, currency: "ARS" },
       pricedComponentCount: 7,
       status: "complete",
+      cost: {
+        componentSubtotal: { amountMinor: 1060000, currency: "ARS" },
+      },
     });
   });
 
@@ -450,11 +590,71 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(new Set(comparison.mixedCheapest.items.map((item) => item.sellerId))).toEqual(
       new Set(["seller-a", "seller-b"]),
     );
+    expect(comparison.mixedCheapest.sellerIdsUsed).toEqual([
+      "seller-a",
+      "seller-b",
+    ]);
+  });
+
+  it("adds shipping once for each seller used by mixed cheapest", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+      shippingQuotes,
+    );
+
+    expect(comparison.mixedCheapest.cost).toEqual({
+      componentSubtotal: { amountMinor: 1060000, currency: "ARS" },
+      shippingTotal: { amountMinor: 90000, currency: "ARS" },
+      effectiveTotal: { amountMinor: 1150000, currency: "ARS" },
+      shippingStatus: "known",
+    });
+  });
+
+  it("charges mixed shipping once when one seller is used more than once", () => {
+    const build = selectCase(
+      selectMotherboard(createEmptyBuild(), "motherboard-a"),
+      "case-a",
+    );
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      shippingQuotes,
+    );
+
+    expect(comparison.mixedCheapest.sellerIdsUsed).toEqual(["seller-a"]);
+    expect(comparison.mixedCheapest.cost).toMatchObject({
+      componentSubtotal: { amountMinor: 265000, currency: "ARS" },
+      shippingTotal: { amountMinor: 10000, currency: "ARS" },
+      effectiveTotal: { amountMinor: 275000, currency: "ARS" },
+    });
+  });
+
+  it("returns unknown mixed shipping when a used seller has no quote", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      selectCpu(createEmptyBuild(), "cpu-a"),
+      offers,
+      sellers,
+      "ARS",
+      [],
+    );
+
+    expect(comparison.mixedCheapest.cost).toEqual({
+      componentSubtotal: { amountMinor: 100000, currency: "ARS" },
+      shippingTotal: null,
+      effectiveTotal: null,
+      shippingStatus: "unknown",
+    });
   });
 
   it("keeps every single-seller option scoped to one seller", () => {
@@ -463,6 +663,7 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(
@@ -478,12 +679,18 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
       sellerId: "seller-a",
       total: { amountMinor: 1090000, currency: "ARS" },
       differenceFromMixed: { amountMinor: 30000, currency: "ARS" },
+      cost: {
+        shippingTotal: { amountMinor: 10000, currency: "ARS" },
+        effectiveTotal: { amountMinor: 1100000, currency: "ARS" },
+      },
+      effectiveDifferenceFromMixed: { amountMinor: -50000, currency: "ARS" },
     });
   });
 
@@ -493,6 +700,7 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(comparison.singleSellerOptions.find((option) => option.sellerId === "seller-b")).toMatchObject({
@@ -507,6 +715,7 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(comparison.singleSellerOptions.find((option) => option.sellerId === "seller-d")).toMatchObject({
@@ -515,45 +724,187 @@ describe("evaluateBuildPurchaseComparison", () => {
     expect(comparison.cheapestCompleteSingleSeller?.sellerId).toBe("seller-a");
   });
 
+  it("keeps component-subtotal winner separate from effective-cost winner", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+      [
+        {
+          sellerId: "seller-a",
+          price: { amountMinor: 100000, currency: "ARS" },
+        },
+        {
+          sellerId: "seller-c",
+          price: { amountMinor: 0, currency: "ARS" },
+        },
+        {
+          sellerId: "seller-d",
+          price: { amountMinor: 100000, currency: "ARS" },
+        },
+      ],
+    );
+
+    expect(comparison.cheapestCompleteSingleSellerByComponents).toMatchObject({
+      sellerId: "seller-a",
+      total: { amountMinor: 1090000, currency: "ARS" },
+    });
+    expect(comparison.cheapestCompleteSingleSellerByEffectiveCost).toMatchObject({
+      sellerId: "seller-c",
+      cost: {
+        effectiveTotal: { amountMinor: 1130000, currency: "ARS" },
+      },
+    });
+  });
+
   it("returns zero difference when single seller matches mixed cheapest", () => {
     const build = selectCpu(createEmptyBuild(), "cpu-a");
-    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      [
+        {
+          sellerId: "seller-b",
+          price: { amountMinor: 0, currency: "ARS" },
+        },
+      ],
+    );
 
     expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
       sellerId: "seller-b",
-      total: { amountMinor: 100000, currency: "ARS" },
-      differenceFromMixed: { amountMinor: 0, currency: "ARS" },
+      cost: {
+        effectiveTotal: { amountMinor: 100000, currency: "ARS" },
+      },
+      effectiveDifferenceFromMixed: { amountMinor: 0, currency: "ARS" },
     });
+  });
+
+  it("returns positive effective difference when single seller costs more", () => {
+    const build = selectCpu(createEmptyBuild(), "cpu-a");
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      [
+        {
+          sellerId: "seller-b",
+          price: { amountMinor: 10000, currency: "ARS" },
+        },
+        {
+          sellerId: "seller-c",
+          price: { amountMinor: 50000, currency: "ARS" },
+        },
+      ],
+    );
+
+    expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
+      sellerId: "seller-b",
+      effectiveDifferenceFromMixed: { amountMinor: 0, currency: "ARS" },
+    });
+    expect(
+      comparison.singleSellerOptions.find((option) => option.sellerId === "seller-c"),
+    ).toMatchObject({
+      effectiveDifferenceFromMixed: { amountMinor: 50000, currency: "ARS" },
+    });
+  });
+
+  it("returns negative effective difference when single seller beats mixed shipping", () => {
+    const build = selectGpu(selectCpu(createEmptyBuild(), "cpu-a"), "gpu-a");
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      shippingQuotes,
+    );
+
+    expect(comparison.mixedCheapest.cost.effectiveTotal).toEqual({
+      amountMinor: 680000,
+      currency: "ARS",
+    });
+    expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
+      sellerId: "seller-a",
+      effectiveDifferenceFromMixed: { amountMinor: -50000, currency: "ARS" },
+    });
+  });
+
+  it("cannot compare effective totals when required shipping is unknown", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      selectCpu(createEmptyBuild(), "cpu-a"),
+      offers,
+      sellers,
+      "ARS",
+      [],
+    );
+
+    expect(comparison.mixedCheapest.cost.effectiveTotal).toBeNull();
+    expect(comparison.cheapestCompleteSingleSeller).toBeNull();
+    expect(
+      comparison.singleSellerOptions.every(
+        (option) => option.effectiveDifferenceFromMixed === null,
+      ),
+    ).toBe(true);
   });
 
   it("returns null when no seller covers the selected components", () => {
     const build = selectGpu(createEmptyBuild(), "gpu-usd-only");
-    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      shippingQuotes,
+    );
 
     expect(comparison.cheapestCompleteSingleSeller).toBeNull();
   });
 
   it("returns no single-seller options for an empty build", () => {
     expect(
-      evaluateBuildPurchaseComparison(createEmptyBuild(), offers, sellers, "ARS"),
+      evaluateBuildPurchaseComparison(
+        createEmptyBuild(),
+        offers,
+        sellers,
+        "ARS",
+        shippingQuotes,
+      ),
     ).toMatchObject({
       singleSellerOptions: [],
       cheapestCompleteSingleSeller: null,
       mixedCheapest: {
         status: "complete",
         total: { amountMinor: 0, currency: "ARS" },
+        cost: {
+          componentSubtotal: { amountMinor: 0, currency: "ARS" },
+          shippingTotal: { amountMinor: 0, currency: "ARS" },
+          effectiveTotal: { amountMinor: 0, currency: "ARS" },
+          shippingStatus: "known",
+        },
       },
     });
   });
 
   it("supports partial selected builds", () => {
     const build = selectGpu(selectCpu(createEmptyBuild(), "cpu-a"), "gpu-a");
-    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+    const comparison = evaluateBuildPurchaseComparison(
+      build,
+      offers,
+      sellers,
+      "ARS",
+      shippingQuotes,
+    );
 
     expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
-      sellerId: "seller-b",
-      total: { amountMinor: 600000, currency: "ARS" },
-      differenceFromMixed: { amountMinor: 0, currency: "ARS" },
+      sellerId: "seller-a",
+      total: { amountMinor: 620000, currency: "ARS" },
+      cost: {
+        effectiveTotal: { amountMinor: 630000, currency: "ARS" },
+      },
+      effectiveDifferenceFromMixed: { amountMinor: -50000, currency: "ARS" },
     });
   });
 
@@ -577,6 +928,7 @@ describe("evaluateBuildPurchaseComparison", () => {
       offers,
       sellers,
       "ARS",
+      shippingQuotes,
     );
 
     expect(comparison.mixedCheapest.total).toEqual({
@@ -585,7 +937,7 @@ describe("evaluateBuildPurchaseComparison", () => {
     });
   });
 
-  it("does not mutate build, offers, or sellers", () => {
+  it("does not mutate build, offers, sellers, or shipping", () => {
     const build = createCompleteBuild();
     const buildBefore = { ...build };
     const offersBefore = offers.map((offer) => ({
@@ -593,11 +945,16 @@ describe("evaluateBuildPurchaseComparison", () => {
       price: { ...offer.price },
     }));
     const sellersBefore = sellers.map((seller) => ({ ...seller }));
+    const shippingBefore = shippingQuotes.map((quote) => ({
+      ...quote,
+      price: { ...quote.price },
+    }));
 
-    evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+    evaluateBuildPurchaseComparison(build, offers, sellers, "ARS", shippingQuotes);
 
     expect(build).toEqual(buildBefore);
     expect(offers).toEqual(offersBefore);
     expect(sellers).toEqual(sellersBefore);
+    expect(shippingQuotes).toEqual(shippingBefore);
   });
 });

@@ -14,6 +14,11 @@ export type ComponentOffer = {
   price: Money;
 };
 
+export type SellerShippingQuote = {
+  sellerId: Seller["id"];
+  price: Money;
+};
+
 export const sellers = [
   {
     id: "seller-demo-a",
@@ -156,10 +161,37 @@ export const componentOffers = [
   },
 ] as const satisfies readonly ComponentOffer[];
 
+export const sellerShippingQuotes = [
+  {
+    sellerId: "seller-demo-a",
+    price: { amountMinor: 2500000, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-demo-b",
+    price: { amountMinor: 6000000, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-import",
+    price: { amountMinor: 0, currency: "ARS" },
+  },
+  {
+    sellerId: "seller-import",
+    price: { amountMinor: 8999, currency: "USD" },
+  },
+  {
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 0, currency: "ARS" },
+  },
+] as const satisfies readonly SellerShippingQuote[];
+
 export function getAllSellers() {
   return sellers;
 }
 
 export function getAllComponentOffers() {
   return componentOffers;
+}
+
+export function getAllSellerShippingQuotes() {
+  return sellerShippingQuotes;
 }

@@ -40,7 +40,11 @@ import {
   type BuildPurchaseComparison,
 } from "@/modules/pricing/build-pricing";
 import type { Money } from "@/modules/pricing/money";
-import type { ComponentOffer, Seller } from "@/modules/pricing/offers";
+import type {
+  ComponentOffer,
+  Seller,
+  SellerShippingQuote,
+} from "@/modules/pricing/offers";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
@@ -52,6 +56,7 @@ type PcBuilderClientProps = {
   cases: readonly PcCase[];
   offers: readonly ComponentOffer[];
   sellers: readonly Seller[];
+  shippingQuotes: readonly SellerShippingQuote[];
 };
 
 export function PcBuilderClient({
@@ -64,6 +69,7 @@ export function PcBuilderClient({
   cases,
   offers,
   sellers,
+  shippingQuotes,
 }: PcBuilderClientProps) {
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
@@ -89,8 +95,15 @@ export function PcBuilderClient({
     [build, cpus, cpuCoolers, motherboards, gpus, memoryKits, psus, cases],
   );
   const purchaseComparison = useMemo(
-    () => evaluateBuildPurchaseComparison(build, offers, sellers, "ARS"),
-    [build, offers, sellers],
+    () =>
+      evaluateBuildPurchaseComparison(
+        build,
+        offers,
+        sellers,
+        "ARS",
+        shippingQuotes,
+      ),
+    [build, offers, sellers, shippingQuotes],
   );
 
   return (
@@ -444,6 +457,7 @@ function BuildPricingSummary({
   sellers: readonly Seller[];
 }) {
   const { mixedCheapest, cheapestCompleteSingleSeller } = comparison;
+  const bestSingleSellerTotal = cheapestCompleteSingleSeller?.cost.effectiveTotal;
 
   return (
     <div className="space-y-4 border-y border-zinc-200 py-4">
@@ -455,27 +469,49 @@ function BuildPricingSummary({
         />
         <EvaluationFact
           label="Mejor precio mezclando tiendas"
-          value={
-            mixedCheapest.total
-              ? formatMoney(mixedCheapest.total)
-              : "Incompleto"
-          }
+          value={formatPurchaseCost(mixedCheapest.cost)}
         />
         <EvaluationFact
           label="Mejor precio en una sola tienda"
           value={
-            cheapestCompleteSingleSeller?.total
-              ? `${cheapestCompleteSingleSeller.sellerName ?? cheapestCompleteSingleSeller.sellerId} - ${formatMoney(cheapestCompleteSingleSeller.total)}`
+            cheapestCompleteSingleSeller && bestSingleSellerTotal
+              ? `${cheapestCompleteSingleSeller.sellerName ?? cheapestCompleteSingleSeller.sellerId} - ${formatMoney(bestSingleSellerTotal)}`
               : "Sin tienda completa"
           }
         />
       </div>
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PurchaseCostSummary
+          title="Mejor precio mezclando tiendas"
+          cost={mixedCheapest.cost}
+        />
+        {cheapestCompleteSingleSeller ? (
+          <PurchaseCostSummary
+            title="Mejor precio en una sola tienda"
+            cost={cheapestCompleteSingleSeller.cost}
+            sellerName={
+              cheapestCompleteSingleSeller.sellerName ??
+              cheapestCompleteSingleSeller.sellerId
+            }
+          />
+        ) : (
+          <div>
+            <p className="font-medium text-zinc-900">
+              Mejor precio en una sola tienda
+            </p>
+            <p className="mt-2 text-zinc-600">Sin tienda completa.</p>
+          </div>
+        )}
+      </div>
+
       {cheapestCompleteSingleSeller ? (
         <p className="text-zinc-600">
           Diferencia contra mezcla:{" "}
-          {cheapestCompleteSingleSeller.differenceFromMixed
-            ? formatMoneyDifference(cheapestCompleteSingleSeller.differenceFromMixed)
+          {cheapestCompleteSingleSeller.effectiveDifferenceFromMixed
+            ? formatMoneyDifference(
+                cheapestCompleteSingleSeller.effectiveDifferenceFromMixed,
+              )
             : "No disponible"}
           .
         </p>
@@ -504,6 +540,54 @@ function BuildPricingSummary({
   );
 }
 
+function PurchaseCostSummary({
+  title,
+  cost,
+  sellerName,
+}: {
+  title: string;
+  cost: BuildPurchaseComparison["mixedCheapest"]["cost"];
+  sellerName?: string;
+}) {
+  return (
+    <div>
+      <p className="font-medium text-zinc-900">{title}</p>
+      {sellerName ? <p className="mt-1 text-zinc-600">{sellerName}</p> : null}
+      <dl className="mt-2 space-y-1 text-zinc-600">
+        <PurchaseCostRow
+          label="Precio de componentes"
+          value={formatMoney(cost.componentSubtotal)}
+        />
+        <PurchaseCostRow
+          label="Envío"
+          value={
+            cost.shippingTotal
+              ? formatMoney(cost.shippingTotal)
+              : "Envío no disponible"
+          }
+        />
+        <PurchaseCostRow
+          label="Total efectivo"
+          value={
+            cost.effectiveTotal
+              ? formatMoney(cost.effectiveTotal)
+              : "No disponible"
+          }
+        />
+      </dl>
+    </div>
+  );
+}
+
+function PurchaseCostRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+      <dt>{label}</dt>
+      <dd className="font-medium text-zinc-900">{value}</dd>
+    </div>
+  );
+}
+
 function EvaluationFact({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -511,6 +595,12 @@ function EvaluationFact({ label, value }: { label: string; value: string }) {
       <p className="text-zinc-900">{value}</p>
     </div>
   );
+}
+
+function formatPurchaseCost(cost: BuildPurchaseComparison["mixedCheapest"]["cost"]) {
+  return cost.effectiveTotal
+    ? formatMoney(cost.effectiveTotal)
+    : formatMoney(cost.componentSubtotal);
 }
 
 function formatMoney(money: Money) {
