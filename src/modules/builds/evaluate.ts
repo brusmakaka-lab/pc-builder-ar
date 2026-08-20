@@ -23,6 +23,10 @@ import {
   checkPsuPowerCompatibility,
   type PsuPowerCompatibility,
 } from "../compatibility/psu-power";
+import {
+  getCompatibilityStatus,
+  type CompatibilityStatus,
+} from "../compatibility/types";
 
 import type { PcBuild } from "./types";
 
@@ -36,10 +40,7 @@ export type BuildComponentSlot =
 
 export type BuildCompletion = "empty" | "partial" | "complete";
 
-export type BuildCompatibilityStatus =
-  | "unknown"
-  | "compatible"
-  | "incompatible";
+export type BuildCompatibilityStatus = CompatibilityStatus;
 
 export type BuildIssue = {
   code:
@@ -256,7 +257,7 @@ export function evaluateBuild(
 
   return {
     completion,
-    compatibility: getBuildCompatibilityStatus([
+    compatibility: getCompatibilityStatus([
       cpuMotherboardCompatibility,
       memoryMotherboardCompatibility,
       psuPowerCompatibility,
@@ -320,32 +321,6 @@ function getBuildCompletion(
   }
 
   return "partial";
-}
-
-function getBuildCompatibilityStatus(
-  compatibilityChecks: readonly (
-    | CpuMotherboardCompatibility
-    | MemoryMotherboardCompatibility
-    | PsuPowerCompatibility
-    | GpuPsuConnectorCompatibility
-    | MotherboardCaseCompatibility
-    | GpuCaseCompatibility
-    | null
-  )[],
-): BuildCompatibilityStatus {
-  if (
-    compatibilityChecks.some(
-      (compatibility) => compatibility?.compatible === false,
-    )
-  ) {
-    return "incompatible";
-  }
-
-  if (compatibilityChecks.some((compatibility) => compatibility === null)) {
-    return "unknown";
-  }
-
-  return "compatible";
 }
 
 function getBuildIssues(

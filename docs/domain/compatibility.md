@@ -2,6 +2,29 @@
 
 El modulo de compatibilidad concentra reglas puras entre componentes del catalogo. No importa React, no accede a base de datos y no depende de fixtures globales.
 
+Cada check puro recibe componentes ya resueltos y devuelve `compatible` o `incompatible`. No representa `unknown`: si faltan IDs en una `PcBuild` o un ID no se resuelve contra el catalogo, esa incertidumbre pertenece al evaluator de build.
+
+Los resultados de checks usan `CompatibilityCheckResult<TReason, TCompatibleDetails>` para compartir la forma discriminada sin forzar la metadata especifica de cada regla. Por ejemplo, PSU/potencia conserva `estimate`, conectores conserva `missingConnectors`, y socket/RAM/gabinete conservan solo los datos necesarios para explicar el fallo.
+
+El estado agregado usa `CompatibilityStatus`:
+
+```text
+unknown | compatible | incompatible
+```
+
+La precedencia global esta centralizada:
+
+```text
+if any incompatible:
+  incompatible
+else if any unknown:
+  unknown
+else:
+  compatible
+```
+
+`evaluateBuild` conserva el orden explicito de reglas porque ese orden tambien gobierna los issues. No existe un `CompatibilityEngine` generico: con seis reglas conocidas, una lista explicita es mas legible que un registry o sistema de plugins.
+
 ## Reglas implementadas
 
 CPU contra motherboard:

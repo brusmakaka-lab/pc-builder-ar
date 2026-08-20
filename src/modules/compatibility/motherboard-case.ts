@@ -1,17 +1,14 @@
 import type { Motherboard, PcCase } from "../catalog/types";
+import type { CompatibilityCheckResult } from "./types";
+
+export type MotherboardCaseCompatibilityReason = {
+  code: "FORM_FACTOR_NOT_SUPPORTED";
+  motherboardFormFactor: Motherboard["formFactor"];
+  supportedMotherboardFormFactors: PcCase["supportedMotherboardFormFactors"];
+};
 
 export type MotherboardCaseCompatibility =
-  | {
-      compatible: true;
-    }
-  | {
-      compatible: false;
-      reason: {
-        code: "FORM_FACTOR_NOT_SUPPORTED";
-        motherboardFormFactor: Motherboard["formFactor"];
-        supportedMotherboardFormFactors: PcCase["supportedMotherboardFormFactors"];
-      };
-    };
+  CompatibilityCheckResult<MotherboardCaseCompatibilityReason>;
 
 export function checkMotherboardCaseCompatibility(
   motherboard: Motherboard,

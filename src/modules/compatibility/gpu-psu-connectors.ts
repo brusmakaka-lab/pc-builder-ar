@@ -4,21 +4,19 @@ import type {
   PowerConnectorRequirement,
   Psu,
 } from "@/modules/catalog/types";
+import type { CompatibilityCheckResult } from "./types";
 
 export type GpuPsuConnectorCompatibilityReason = {
   code: "MISSING_GPU_POWER_CONNECTORS";
   missingConnectors: PowerConnectorRequirement[];
 };
 
-export type GpuPsuConnectorCompatibility =
-  | {
-      compatible: true;
-      missingConnectors: [];
-    }
-  | {
-      compatible: false;
-      reason: GpuPsuConnectorCompatibilityReason;
-    };
+export type GpuPsuConnectorCompatibility = CompatibilityCheckResult<
+  GpuPsuConnectorCompatibilityReason,
+  {
+    missingConnectors: [];
+  }
+>;
 
 export function checkGpuPsuConnectorCompatibility(
   gpu: Gpu,

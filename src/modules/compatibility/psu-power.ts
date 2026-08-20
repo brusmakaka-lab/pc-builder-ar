@@ -1,4 +1,5 @@
 import type { Cpu, Gpu, Psu } from "@/modules/catalog/types";
+import type { CompatibilityCheckResult } from "./types";
 
 export const SYSTEM_BASE_POWER_WATTS = 100;
 export const PSU_HEADROOM_RATIO = 1.25;
@@ -19,16 +20,13 @@ export type PsuPowerCompatibilityReason = {
   estimate: PsuPowerEstimate;
 };
 
-export type PsuPowerCompatibility =
-  | {
-      compatible: true;
-      psuWattage: number;
-      estimate: PsuPowerEstimate;
-    }
-  | {
-      compatible: false;
-      reason: PsuPowerCompatibilityReason;
-    };
+export type PsuPowerCompatibility = CompatibilityCheckResult<
+  PsuPowerCompatibilityReason,
+  {
+    psuWattage: number;
+    estimate: PsuPowerEstimate;
+  }
+>;
 
 export function estimateComponentLoadWatts(cpu: Cpu, gpu: Gpu) {
   return cpu.tdpWatts + gpu.boardPowerWatts;

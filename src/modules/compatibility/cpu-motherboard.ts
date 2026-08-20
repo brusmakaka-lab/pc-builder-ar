@@ -1,4 +1,5 @@
 import type { Cpu, CpuSocket, Motherboard } from "@/modules/catalog/types";
+import type { CompatibilityCheckResult } from "./types";
 
 export type CpuMotherboardCompatibilityReason = {
   code: "SOCKET_MISMATCH";
@@ -7,11 +8,7 @@ export type CpuMotherboardCompatibilityReason = {
 };
 
 export type CpuMotherboardCompatibility =
-  | { compatible: true }
-  | {
-      compatible: false;
-      reason: CpuMotherboardCompatibilityReason;
-    };
+  CompatibilityCheckResult<CpuMotherboardCompatibilityReason>;
 
 export function checkCpuMotherboardCompatibility(
   cpu: Cpu,

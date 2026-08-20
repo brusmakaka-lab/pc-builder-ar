@@ -1,4 +1,5 @@
 import type { MemoryKit, MemoryType, Motherboard } from "@/modules/catalog/types";
+import type { CompatibilityCheckResult } from "./types";
 
 export type MemoryMotherboardCompatibilityReason = {
   code: "MEMORY_TYPE_MISMATCH";
@@ -7,11 +8,7 @@ export type MemoryMotherboardCompatibilityReason = {
 };
 
 export type MemoryMotherboardCompatibility =
-  | { compatible: true }
-  | {
-      compatible: false;
-      reason: MemoryMotherboardCompatibilityReason;
-    };
+  CompatibilityCheckResult<MemoryMotherboardCompatibilityReason>;
 
 export function checkMemoryMotherboardCompatibility(
   memoryKit: MemoryKit,

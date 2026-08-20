@@ -1,17 +1,14 @@
 import type { Gpu, PcCase } from "../catalog/types";
+import type { CompatibilityCheckResult } from "./types";
+
+export type GpuCaseCompatibilityReason = {
+  code: "GPU_LENGTH_EXCEEDED";
+  gpuLengthMm: number;
+  maxGpuLengthMm: number;
+};
 
 export type GpuCaseCompatibility =
-  | {
-      compatible: true;
-    }
-  | {
-      compatible: false;
-      reason: {
-        code: "GPU_LENGTH_EXCEEDED";
-        gpuLengthMm: number;
-        maxGpuLengthMm: number;
-      };
-    };
+  CompatibilityCheckResult<GpuCaseCompatibilityReason>;
 
 export function checkGpuCaseCompatibility(
   gpu: Gpu,
