@@ -7,6 +7,7 @@ import {
   getAllMotherboards,
   getAllPsus,
 } from "@/modules/catalog/catalog";
+import { getAllComponentOffers } from "@/modules/pricing/offers";
 
 import { PcBuilderClient } from "./_components/pc-builder-client";
 
@@ -18,6 +19,7 @@ export default function Home() {
   const memoryKits = getAllMemoryKits();
   const psus = getAllPsus();
   const cases = getAllCases();
+  const offers = getAllComponentOffers();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12 sm:py-16">
@@ -38,6 +40,7 @@ export default function Home() {
         memoryKits={memoryKits}
         psus={psus}
         cases={cases}
+        offers={offers}
       />
     </main>
   );

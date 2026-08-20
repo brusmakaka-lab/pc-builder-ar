@@ -35,6 +35,12 @@ import type {
   PcCase,
   Psu,
 } from "@/modules/catalog/types";
+import {
+  evaluateBuildPricing,
+  type BuildPricing,
+} from "@/modules/pricing/build-pricing";
+import type { Money } from "@/modules/pricing/money";
+import type { ComponentOffer } from "@/modules/pricing/offers";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
@@ -44,6 +50,7 @@ type PcBuilderClientProps = {
   memoryKits: readonly MemoryKit[];
   psus: readonly Psu[];
   cases: readonly PcCase[];
+  offers: readonly ComponentOffer[];
 };
 
 export function PcBuilderClient({
@@ -54,6 +61,7 @@ export function PcBuilderClient({
   memoryKits,
   psus,
   cases,
+  offers,
 }: PcBuilderClientProps) {
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
@@ -77,6 +85,10 @@ export function PcBuilderClient({
         cases,
       }),
     [build, cpus, cpuCoolers, motherboards, gpus, memoryKits, psus, cases],
+  );
+  const pricing = useMemo(
+    () => evaluateBuildPricing(build, offers, "ARS"),
+    [build, offers],
   );
 
   return (
@@ -261,6 +273,13 @@ export function PcBuilderClient({
         </h2>
         <BuildEvaluationSummary evaluation={evaluation} />
       </section>
+
+      <section aria-labelledby="pricing-title" className="space-y-3">
+        <h2 id="pricing-title" className="text-xl font-semibold text-zinc-900">
+          Precio de build
+        </h2>
+        <BuildPricingSummary pricing={pricing} />
+      </section>
     </div>
   );
 }
@@ -412,6 +431,39 @@ function BuildEvaluationSummary({
   );
 }
 
+function BuildPricingSummary({ pricing }: { pricing: BuildPricing }) {
+  return (
+    <div className="space-y-4 border-y border-zinc-200 py-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <EvaluationFact label="Moneda" value={pricing.currency} />
+        <EvaluationFact
+          label="Subtotal preciado"
+          value={formatMoney(pricing.pricedSubtotal)}
+        />
+        <EvaluationFact
+          label="Total"
+          value={pricing.total ? formatMoney(pricing.total) : "Incompleto"}
+        />
+      </div>
+
+      <div>
+        <p className="font-medium text-zinc-900">Componentes sin precio</p>
+        {pricing.missingPriceComponentIds.length > 0 ? (
+          <ul className="mt-2 list-inside list-disc text-zinc-600">
+            {pricing.missingPriceComponentIds.map((componentId) => (
+              <li key={componentId}>{componentId}</li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-2 text-zinc-600">
+            Todos los componentes seleccionados tienen precio en {pricing.currency}.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EvaluationFact({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -419,6 +471,13 @@ function EvaluationFact({ label, value }: { label: string; value: string }) {
       <p className="text-zinc-900">{value}</p>
     </div>
   );
+}
+
+function formatMoney(money: Money) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: money.currency,
+  }).format(money.amountMinor / 100);
 }
 
 function formatCompletion(completion: BuildCompletion) {

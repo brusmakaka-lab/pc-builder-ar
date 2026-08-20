@@ -35,6 +35,8 @@ El modulo expone operaciones pequenas e inmutables para crear una build vacia, s
 
 La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son responsabilidades separadas.
 
+El costo de la build se calcula por separado en el dominio de pricing. `BuildEvaluation` no contiene precios; `evaluateBuildPricing` consume la misma `PcBuild` junto con ofertas externas al catalogo tecnico.
+
 ## Compatibilidad
 
 Una build puede conservar selecciones incompatibles. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.

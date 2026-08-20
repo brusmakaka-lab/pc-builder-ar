@@ -16,7 +16,7 @@ export type PricingResult =
 
 export function addMoney(values: Money[]): PricingResult {
   if (values.length === 0) {
-    return { ok: true, total: { amountMinor: 0, currency: "ARS" } };
+    return { ok: true, total: createZeroMoney("ARS") };
   }
 
   const [first, ...rest] = values;
@@ -35,4 +35,23 @@ export function addMoney(values: Money[]): PricingResult {
       currency: first.currency,
     },
   };
+}
+
+export function createZeroMoney(currency: Currency): Money {
+  return { amountMinor: 0, currency };
+}
+
+export function addMoneyForCurrency(
+  values: readonly Money[],
+  currency: Currency,
+): PricingResult {
+  if (values.length === 0) {
+    return { ok: true, total: createZeroMoney(currency) };
+  }
+
+  if (values.some((value) => value.currency !== currency)) {
+    return { ok: false, reason: "currency_mismatch" };
+  }
+
+  return addMoney([...values]);
 }
