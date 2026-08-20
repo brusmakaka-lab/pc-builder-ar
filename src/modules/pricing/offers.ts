@@ -27,6 +27,10 @@ export const sellers = [
     id: "seller-import",
     name: "Import Demo",
   },
+  {
+    id: "seller-one-stop",
+    name: "One Stop Demo",
+  },
 ] as const satisfies readonly Seller[];
 
 export const componentOffers = [
@@ -43,6 +47,12 @@ export const componentOffers = [
     price: { amountMinor: 26500000, currency: "ARS" },
   },
   {
+    id: "offer-ars-cpu-7600-c",
+    componentId: "cpu-amd-ryzen-5-7600",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 28000000, currency: "ARS" },
+  },
+  {
     id: "offer-usd-cpu-7600",
     componentId: "cpu-amd-ryzen-5-7600",
     sellerId: "seller-import",
@@ -53,6 +63,12 @@ export const componentOffers = [
     componentId: "motherboard-msi-b650-tomahawk-wifi",
     sellerId: "seller-demo-a",
     price: { amountMinor: 36500000, currency: "ARS" },
+  },
+  {
+    id: "offer-ars-motherboard-b650-c",
+    componentId: "motherboard-msi-b650-tomahawk-wifi",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 38000000, currency: "ARS" },
   },
   {
     id: "offer-ars-gpu-5070-a",
@@ -67,10 +83,22 @@ export const componentOffers = [
     price: { amountMinor: 92000000, currency: "ARS" },
   },
   {
+    id: "offer-ars-gpu-5070-c",
+    componentId: "gpu-asus-prime-rtx-5070-oc",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 94000000, currency: "ARS" },
+  },
+  {
     id: "offer-ars-memory-ripjaws",
     componentId: "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
     sellerId: "seller-demo-a",
     price: { amountMinor: 14500000, currency: "ARS" },
+  },
+  {
+    id: "offer-ars-memory-ripjaws-c",
+    componentId: "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 15000000, currency: "ARS" },
   },
   {
     id: "offer-ars-psu-seasonic",
@@ -79,16 +107,46 @@ export const componentOffers = [
     price: { amountMinor: 22000000, currency: "ARS" },
   },
   {
+    id: "offer-ars-psu-seasonic-a",
+    componentId: "psu-seasonic-focus-gx-750w",
+    sellerId: "seller-demo-a",
+    price: { amountMinor: 25000000, currency: "ARS" },
+  },
+  {
+    id: "offer-ars-psu-seasonic-c",
+    componentId: "psu-seasonic-focus-gx-750w",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 23500000, currency: "ARS" },
+  },
+  {
     id: "offer-ars-case-4000d",
     componentId: "case-corsair-4000d-airflow",
     sellerId: "seller-demo-a",
     price: { amountMinor: 18500000, currency: "ARS" },
   },
   {
+    id: "offer-ars-case-4000d-c",
+    componentId: "case-corsair-4000d-airflow",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 19500000, currency: "ARS" },
+  },
+  {
     id: "offer-ars-cooler-ag400",
     componentId: "cpu-cooler-deepcool-ag400",
     sellerId: "seller-demo-b",
     price: { amountMinor: 6200000, currency: "ARS" },
+  },
+  {
+    id: "offer-ars-cooler-ag400-a",
+    componentId: "cpu-cooler-deepcool-ag400",
+    sellerId: "seller-demo-a",
+    price: { amountMinor: 7000000, currency: "ARS" },
+  },
+  {
+    id: "offer-ars-cooler-ag400-c",
+    componentId: "cpu-cooler-deepcool-ag400",
+    sellerId: "seller-one-stop",
+    price: { amountMinor: 6500000, currency: "ARS" },
   },
   {
     id: "offer-usd-gpu-4060",

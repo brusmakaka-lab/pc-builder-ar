@@ -36,11 +36,11 @@ import type {
   Psu,
 } from "@/modules/catalog/types";
 import {
-  evaluateBuildPricing,
-  type BuildPricing,
+  evaluateBuildPurchaseComparison,
+  type BuildPurchaseComparison,
 } from "@/modules/pricing/build-pricing";
 import type { Money } from "@/modules/pricing/money";
-import type { ComponentOffer } from "@/modules/pricing/offers";
+import type { ComponentOffer, Seller } from "@/modules/pricing/offers";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
@@ -51,6 +51,7 @@ type PcBuilderClientProps = {
   psus: readonly Psu[];
   cases: readonly PcCase[];
   offers: readonly ComponentOffer[];
+  sellers: readonly Seller[];
 };
 
 export function PcBuilderClient({
@@ -62,6 +63,7 @@ export function PcBuilderClient({
   psus,
   cases,
   offers,
+  sellers,
 }: PcBuilderClientProps) {
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
@@ -86,9 +88,9 @@ export function PcBuilderClient({
       }),
     [build, cpus, cpuCoolers, motherboards, gpus, memoryKits, psus, cases],
   );
-  const pricing = useMemo(
-    () => evaluateBuildPricing(build, offers, "ARS"),
-    [build, offers],
+  const purchaseComparison = useMemo(
+    () => evaluateBuildPurchaseComparison(build, offers, sellers, "ARS"),
+    [build, offers, sellers],
   );
 
   return (
@@ -278,7 +280,10 @@ export function PcBuilderClient({
         <h2 id="pricing-title" className="text-xl font-semibold text-zinc-900">
           Precio de build
         </h2>
-        <BuildPricingSummary pricing={pricing} />
+        <BuildPricingSummary
+          comparison={purchaseComparison}
+          sellers={sellers}
+        />
       </section>
     </div>
   );
@@ -431,32 +436,67 @@ function BuildEvaluationSummary({
   );
 }
 
-function BuildPricingSummary({ pricing }: { pricing: BuildPricing }) {
+function BuildPricingSummary({
+  comparison,
+  sellers,
+}: {
+  comparison: BuildPurchaseComparison;
+  sellers: readonly Seller[];
+}) {
+  const { mixedCheapest, cheapestCompleteSingleSeller } = comparison;
+
   return (
     <div className="space-y-4 border-y border-zinc-200 py-4">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <EvaluationFact label="Moneda" value={pricing.currency} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <EvaluationFact label="Moneda" value={comparison.currency} />
         <EvaluationFact
-          label="Subtotal preciado"
-          value={formatMoney(pricing.pricedSubtotal)}
+          label="Tiendas demo"
+          value={sellers.map((seller) => seller.name).join(", ")}
         />
         <EvaluationFact
-          label="Total"
-          value={pricing.total ? formatMoney(pricing.total) : "Incompleto"}
+          label="Mejor precio mezclando tiendas"
+          value={
+            mixedCheapest.total
+              ? formatMoney(mixedCheapest.total)
+              : "Incompleto"
+          }
+        />
+        <EvaluationFact
+          label="Mejor precio en una sola tienda"
+          value={
+            cheapestCompleteSingleSeller?.total
+              ? `${cheapestCompleteSingleSeller.sellerName ?? cheapestCompleteSingleSeller.sellerId} - ${formatMoney(cheapestCompleteSingleSeller.total)}`
+              : "Sin tienda completa"
+          }
         />
       </div>
 
+      {cheapestCompleteSingleSeller ? (
+        <p className="text-zinc-600">
+          Diferencia contra mezcla:{" "}
+          {cheapestCompleteSingleSeller.differenceFromMixed
+            ? formatMoneyDifference(cheapestCompleteSingleSeller.differenceFromMixed)
+            : "No disponible"}
+          .
+        </p>
+      ) : (
+        <p className="text-zinc-600">
+          No hay una tienda con precio para todos los componentes seleccionados.
+        </p>
+      )}
+
       <div>
         <p className="font-medium text-zinc-900">Componentes sin precio</p>
-        {pricing.missingPriceComponentIds.length > 0 ? (
+        {mixedCheapest.missingPriceComponentIds.length > 0 ? (
           <ul className="mt-2 list-inside list-disc text-zinc-600">
-            {pricing.missingPriceComponentIds.map((componentId) => (
+            {mixedCheapest.missingPriceComponentIds.map((componentId) => (
               <li key={componentId}>{componentId}</li>
             ))}
           </ul>
         ) : (
           <p className="mt-2 text-zinc-600">
-            Todos los componentes seleccionados tienen precio en {pricing.currency}.
+            Todos los componentes seleccionados tienen precio en{" "}
+            {comparison.currency}.
           </p>
         )}
       </div>
@@ -478,6 +518,19 @@ function formatMoney(money: Money) {
     style: "currency",
     currency: money.currency,
   }).format(money.amountMinor / 100);
+}
+
+function formatMoneyDifference(money: Money) {
+  const formattedMoney = formatMoney({
+    amountMinor: Math.abs(money.amountMinor),
+    currency: money.currency,
+  });
+
+  if (money.amountMinor === 0) {
+    return formattedMoney;
+  }
+
+  return money.amountMinor > 0 ? `+${formattedMoney}` : `-${formattedMoney}`;
 }
 
 function formatCompletion(completion: BuildCompletion) {

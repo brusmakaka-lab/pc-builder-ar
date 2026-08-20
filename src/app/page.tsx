@@ -7,7 +7,10 @@ import {
   getAllMotherboards,
   getAllPsus,
 } from "@/modules/catalog/catalog";
-import { getAllComponentOffers } from "@/modules/pricing/offers";
+import {
+  getAllComponentOffers,
+  getAllSellers,
+} from "@/modules/pricing/offers";
 
 import { PcBuilderClient } from "./_components/pc-builder-client";
 
@@ -20,6 +23,7 @@ export default function Home() {
   const psus = getAllPsus();
   const cases = getAllCases();
   const offers = getAllComponentOffers();
+  const sellers = getAllSellers();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12 sm:py-16">
@@ -41,6 +45,7 @@ export default function Home() {
         psus={psus}
         cases={cases}
         offers={offers}
+        sellers={sellers}
       />
     </main>
   );

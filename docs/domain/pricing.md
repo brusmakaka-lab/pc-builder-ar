@@ -74,6 +74,28 @@ Estados:
 
 Pricing no se integra en `BuildEvaluation`. Compatibilidad responde si la build funciona; pricing responde cuanto cuesta segun las ofertas disponibles.
 
+## Purchase Strategy Comparison
+
+`evaluateBuildPurchaseComparison(build, offers, sellers, currency)` compara dos estrategias de compra sobre la misma build y la misma moneda.
+
+### Mixed cheapest
+
+`mixedCheapest` reutiliza `evaluateBuildPricing`. Para cada componente seleccionado elige la oferta mas barata disponible en la moneda solicitada, aunque eso mezcle vendedores distintos.
+
+Esta estrategia sirve como referencia deterministica de menor precio con los datos cargados. No representa necesariamente una compra real porque no modela envios, stock, retiro, descuentos por vendedor, cuotas ni checkout.
+
+### Single seller
+
+`singleSellerOptions` evalua cada vendedor relevante filtrando primero sus ofertas. Una opcion de vendedor unico nunca mezcla ofertas de otros vendedores.
+
+Un vendedor es relevante si tiene al menos una oferta en la moneda solicitada para alguno de los componentes seleccionados. Las opciones se ordenan por `seller.name` y luego por `seller.id` para mantener salida estable.
+
+`cheapestCompleteSingleSeller` solo puede salir de opciones con `status = "complete"` y `total` definido. Las opciones `partial` o `unpriced` no pueden ganar aunque tengan subtotal menor. Si hay empate de total entre vendedores completos, gana el `sellerId` lexicograficamente menor.
+
+`differenceFromMixed` es `singleSeller.total - mixedCheapest.total` en la misma moneda. Si falta alguno de los totales, queda en `null`.
+
+Una build vacia mantiene `mixedCheapest` como pricing completo con total cero, pero no genera opciones de vendedor unico y `cheapestCompleteSingleSeller = null`.
+
 ## Fuera de scope
 
 No se modelan APIs de retailers, scraping, FX, impuestos, cuotas, envios, stock, disponibilidad geografica, historicos, usados, marketplaces, alertas, descuentos complejos, bundles, recomendaciones, checkout, persistencia ni backend.

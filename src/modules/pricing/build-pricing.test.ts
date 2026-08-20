@@ -13,10 +13,20 @@ import {
 } from "../builds/build";
 
 import {
+  evaluateBuildPurchaseComparison,
   evaluateBuildPricing,
+  evaluateSellerBuildPricing,
   selectOfferForComponent,
 } from "./build-pricing";
-import type { ComponentOffer } from "./offers";
+import type { ComponentOffer, Seller } from "./offers";
+
+const sellers = [
+  { id: "seller-a", name: "Alpha Store" },
+  { id: "seller-b", name: "Beta Store" },
+  { id: "seller-c", name: "Gamma Store" },
+  { id: "seller-d", name: "Tie Store" },
+  { id: "seller-z", name: "No Relevant Offers" },
+] as const satisfies readonly Seller[];
 
 const offers = [
   {
@@ -68,6 +78,12 @@ const offers = [
     price: { amountMinor: 90000, currency: "ARS" },
   },
   {
+    id: "offer-psu-a",
+    componentId: "psu-a",
+    sellerId: "seller-a",
+    price: { amountMinor: 95000, currency: "ARS" },
+  },
+  {
     id: "offer-case",
     componentId: "case-a",
     sellerId: "seller-a",
@@ -78,6 +94,96 @@ const offers = [
     componentId: "cooler-a",
     sellerId: "seller-b",
     price: { amountMinor: 30000, currency: "ARS" },
+  },
+  {
+    id: "offer-cooler-a",
+    componentId: "cooler-a",
+    sellerId: "seller-a",
+    price: { amountMinor: 35000, currency: "ARS" },
+  },
+  {
+    id: "offer-cpu-c",
+    componentId: "cpu-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 110000, currency: "ARS" },
+  },
+  {
+    id: "offer-board-c",
+    componentId: "motherboard-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 210000, currency: "ARS" },
+  },
+  {
+    id: "offer-gpu-c",
+    componentId: "gpu-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 520000, currency: "ARS" },
+  },
+  {
+    id: "offer-memory-c",
+    componentId: "memory-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 80000, currency: "ARS" },
+  },
+  {
+    id: "offer-psu-c",
+    componentId: "psu-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 100000, currency: "ARS" },
+  },
+  {
+    id: "offer-case-c",
+    componentId: "case-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 70000, currency: "ARS" },
+  },
+  {
+    id: "offer-cooler-c",
+    componentId: "cooler-a",
+    sellerId: "seller-c",
+    price: { amountMinor: 40000, currency: "ARS" },
+  },
+  {
+    id: "offer-cpu-d",
+    componentId: "cpu-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 115000, currency: "ARS" },
+  },
+  {
+    id: "offer-board-d",
+    componentId: "motherboard-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 200000, currency: "ARS" },
+  },
+  {
+    id: "offer-gpu-d",
+    componentId: "gpu-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 505000, currency: "ARS" },
+  },
+  {
+    id: "offer-memory-d",
+    componentId: "memory-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 75000, currency: "ARS" },
+  },
+  {
+    id: "offer-psu-d",
+    componentId: "psu-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 95000, currency: "ARS" },
+  },
+  {
+    id: "offer-case-d",
+    componentId: "case-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 65000, currency: "ARS" },
+  },
+  {
+    id: "offer-cooler-d",
+    componentId: "cooler-a",
+    sellerId: "seller-d",
+    price: { amountMinor: 35000, currency: "ARS" },
   },
   {
     id: "offer-usd-only",
@@ -251,5 +357,247 @@ describe("evaluateBuildPricing", () => {
     evaluateBuildPricing(createCompleteBuild(), offers, "ARS");
 
     expect(offers).toEqual(before);
+  });
+});
+
+describe("evaluateSellerBuildPricing", () => {
+  it("returns complete for a seller with all selected component offers", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        createCompleteBuild(),
+        offers,
+        sellers[0],
+        "ARS",
+      ),
+    ).toMatchObject({
+      sellerId: "seller-a",
+      status: "complete",
+      pricedSubtotal: { amountMinor: 1090000, currency: "ARS" },
+      total: { amountMinor: 1090000, currency: "ARS" },
+      missingPriceComponentIds: [],
+    });
+  });
+
+  it("returns partial for a seller with only some selected component offers", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        createCompleteBuild(),
+        offers,
+        sellers[1],
+        "ARS",
+      ),
+    ).toMatchObject({
+      sellerId: "seller-b",
+      status: "partial",
+      pricedSubtotal: { amountMinor: 720000, currency: "ARS" },
+      total: null,
+      missingPriceComponentIds: ["motherboard-a", "memory-a", "case-a"],
+    });
+  });
+
+  it("returns unpriced for a seller without relevant offers", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        selectCpu(createEmptyBuild(), "cpu-a"),
+        offers,
+        sellers[4],
+        "ARS",
+      ),
+    ).toMatchObject({
+      sellerId: "seller-z",
+      status: "unpriced",
+      pricedSubtotal: { amountMinor: 0, currency: "ARS" },
+      total: null,
+      missingPriceComponentIds: ["cpu-a"],
+    });
+  });
+
+  it("ignores offers in the wrong currency", () => {
+    expect(
+      evaluateSellerBuildPricing(
+        selectGpu(createEmptyBuild(), "gpu-usd-only"),
+        offers,
+        sellers[2],
+        "ARS",
+      ),
+    ).toMatchObject({
+      status: "unpriced",
+      missingPriceComponentIds: ["gpu-usd-only"],
+    });
+  });
+});
+
+describe("evaluateBuildPurchaseComparison", () => {
+  it("uses the existing mixed cheapest semantics", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(comparison.mixedCheapest).toMatchObject({
+      strategy: "mixed-cheapest",
+      total: { amountMinor: 1060000, currency: "ARS" },
+      pricedComponentCount: 7,
+      status: "complete",
+    });
+  });
+
+  it("allows mixed cheapest to use multiple sellers", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(new Set(comparison.mixedCheapest.items.map((item) => item.sellerId))).toEqual(
+      new Set(["seller-a", "seller-b"]),
+    );
+  });
+
+  it("keeps every single-seller option scoped to one seller", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(
+      comparison.singleSellerOptions.every((option) =>
+        option.items.every((item) => item.sellerId === option.sellerId),
+      ),
+    ).toBe(true);
+  });
+
+  it("chooses the cheapest complete single seller", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
+      sellerId: "seller-a",
+      total: { amountMinor: 1090000, currency: "ARS" },
+      differenceFromMixed: { amountMinor: 30000, currency: "ARS" },
+    });
+  });
+
+  it("does not allow a partial seller to win", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(comparison.singleSellerOptions.find((option) => option.sellerId === "seller-b")).toMatchObject({
+      status: "partial",
+    });
+    expect(comparison.cheapestCompleteSingleSeller?.sellerId).not.toBe("seller-b");
+  });
+
+  it("uses seller id as deterministic tie-break for equal complete totals", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      createCompleteBuild(),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(comparison.singleSellerOptions.find((option) => option.sellerId === "seller-d")).toMatchObject({
+      total: { amountMinor: 1090000, currency: "ARS" },
+    });
+    expect(comparison.cheapestCompleteSingleSeller?.sellerId).toBe("seller-a");
+  });
+
+  it("returns zero difference when single seller matches mixed cheapest", () => {
+    const build = selectCpu(createEmptyBuild(), "cpu-a");
+    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+
+    expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
+      sellerId: "seller-b",
+      total: { amountMinor: 100000, currency: "ARS" },
+      differenceFromMixed: { amountMinor: 0, currency: "ARS" },
+    });
+  });
+
+  it("returns null when no seller covers the selected components", () => {
+    const build = selectGpu(createEmptyBuild(), "gpu-usd-only");
+    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+
+    expect(comparison.cheapestCompleteSingleSeller).toBeNull();
+  });
+
+  it("returns no single-seller options for an empty build", () => {
+    expect(
+      evaluateBuildPurchaseComparison(createEmptyBuild(), offers, sellers, "ARS"),
+    ).toMatchObject({
+      singleSellerOptions: [],
+      cheapestCompleteSingleSeller: null,
+      mixedCheapest: {
+        status: "complete",
+        total: { amountMinor: 0, currency: "ARS" },
+      },
+    });
+  });
+
+  it("supports partial selected builds", () => {
+    const build = selectGpu(selectCpu(createEmptyBuild(), "cpu-a"), "gpu-a");
+    const comparison = evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+
+    expect(comparison.cheapestCompleteSingleSeller).toMatchObject({
+      sellerId: "seller-b",
+      total: { amountMinor: 600000, currency: "ARS" },
+      differenceFromMixed: { amountMinor: 0, currency: "ARS" },
+    });
+  });
+
+  it("changes comparison when a component changes", () => {
+    const baseBuild = selectCpu(createEmptyBuild(), "cpu-a");
+    const withGpu = selectGpu(baseBuild, "gpu-a");
+
+    expect(
+      evaluateBuildPurchaseComparison(baseBuild, offers, sellers, "ARS")
+        .mixedCheapest.total,
+    ).toEqual({ amountMinor: 100000, currency: "ARS" });
+    expect(
+      evaluateBuildPurchaseComparison(withGpu, offers, sellers, "ARS")
+        .mixedCheapest.total,
+    ).toEqual({ amountMinor: 600000, currency: "ARS" });
+  });
+
+  it("changes comparison when a component is cleared", () => {
+    const comparison = evaluateBuildPurchaseComparison(
+      clearGpu(createCompleteBuild()),
+      offers,
+      sellers,
+      "ARS",
+    );
+
+    expect(comparison.mixedCheapest.total).toEqual({
+      amountMinor: 560000,
+      currency: "ARS",
+    });
+  });
+
+  it("does not mutate build, offers, or sellers", () => {
+    const build = createCompleteBuild();
+    const buildBefore = { ...build };
+    const offersBefore = offers.map((offer) => ({
+      ...offer,
+      price: { ...offer.price },
+    }));
+    const sellersBefore = sellers.map((seller) => ({ ...seller }));
+
+    evaluateBuildPurchaseComparison(build, offers, sellers, "ARS");
+
+    expect(build).toEqual(buildBefore);
+    expect(offers).toEqual(offersBefore);
+    expect(sellers).toEqual(sellersBefore);
   });
 });
