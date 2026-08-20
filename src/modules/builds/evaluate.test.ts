@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  getAllCases,
   getAllCpus,
   getAllGpus,
   getAllMemoryKits,
@@ -13,6 +14,7 @@ import {
 
 import {
   createEmptyBuild,
+  selectCase,
   selectCpu,
   selectGpu,
   selectMemoryKit,
@@ -22,8 +24,10 @@ import {
 import {
   evaluateBuild,
   evaluateCpuMotherboardCompatibility,
+  evaluateGpuCaseCompatibility,
   evaluateGpuPsuConnectorCompatibility,
   evaluateMemoryMotherboardCompatibility,
+  evaluateMotherboardCaseCompatibility,
   evaluatePsuPowerCompatibility,
 } from "./evaluate";
 
@@ -33,6 +37,7 @@ const catalog = {
   gpus: getAllGpus(),
   memoryKits: getAllMemoryKits(),
   psus: getAllPsus(),
+  cases: getAllCases(),
 };
 
 describe("evaluateCpuMotherboardCompatibility", () => {
@@ -406,12 +411,103 @@ describe("evaluateGpuPsuConnectorCompatibility", () => {
   });
 });
 
+describe("evaluateMotherboardCaseCompatibility", () => {
+  it("returns unknown when motherboard is absent", () => {
+    const build = selectCase(createEmptyBuild(), "case-corsair-4000d-airflow");
+
+    expect(evaluateMotherboardCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when case is absent", () => {
+    const build = selectMotherboard(
+      createEmptyBuild(),
+      "motherboard-msi-b650-tomahawk-wifi",
+    );
+
+    expect(evaluateMotherboardCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible for an explicitly supported form factor", () => {
+    const build = selectCase(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "case-corsair-4000d-airflow",
+    );
+
+    expect(evaluateMotherboardCaseCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns incompatible when the case does not list the motherboard form factor", () => {
+    const build = selectCase(
+      selectMotherboard(
+        createEmptyBuild(),
+        "motherboard-msi-b650-tomahawk-wifi",
+      ),
+      "case-cooler-master-n200",
+    );
+
+    expect(evaluateMotherboardCaseCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "FORM_FACTOR_NOT_SUPPORTED",
+        motherboardFormFactor: "ATX",
+        supportedMotherboardFormFactors: ["MicroATX"],
+      },
+    });
+  });
+});
+
+describe("evaluateGpuCaseCompatibility", () => {
+  it("returns unknown when GPU is absent", () => {
+    const build = selectCase(createEmptyBuild(), "case-corsair-4000d-airflow");
+
+    expect(evaluateGpuCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when case is absent", () => {
+    const build = selectGpu(createEmptyBuild(), "gpu-asus-prime-rtx-5070-oc");
+
+    expect(evaluateGpuCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible when the GPU fits the case length limit", () => {
+    const build = selectCase(
+      selectGpu(createEmptyBuild(), "gpu-asus-prime-rtx-5070-oc"),
+      "case-corsair-4000d-airflow",
+    );
+
+    expect(evaluateGpuCaseCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns incompatible when the GPU exceeds the case length limit", () => {
+    const build = selectCase(
+      selectGpu(createEmptyBuild(), "gpu-asus-prime-rtx-5070-oc"),
+      "case-generic-compact-matx-260",
+    );
+
+    expect(evaluateGpuCaseCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "GPU_LENGTH_EXCEEDED",
+        gpuLengthMm: 304,
+        maxGpuLengthMm: 260,
+      },
+    });
+  });
+});
+
 describe("evaluateBuild", () => {
   it("evaluates an empty build", () => {
     expect(evaluateBuild(createEmptyBuild(), catalog)).toEqual({
       completion: "empty",
       compatibility: "unknown",
-      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit", "psu"],
+      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit", "psu", "case"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -426,7 +522,7 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["motherboard", "gpu", "memoryKit", "psu"],
+      missingComponents: ["motherboard", "gpu", "memoryKit", "psu", "case"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -447,7 +543,7 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu", "memoryKit", "psu"],
+      missingComponents: ["cpu", "gpu", "memoryKit", "psu", "case"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -465,7 +561,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["gpu", "memoryKit", "psu"],
+      missingComponents: ["gpu", "memoryKit", "psu", "case"],
       issues: [],
     });
   });
@@ -479,7 +575,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toEqual({
       completion: "partial",
       compatibility: "incompatible",
-      missingComponents: ["gpu", "memoryKit", "psu"],
+      missingComponents: ["gpu", "memoryKit", "psu", "case"],
       issues: [
         {
           code: "cpu-motherboard-socket-mismatch",
@@ -506,7 +602,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["memoryKit", "psu"],
+      missingComponents: ["memoryKit", "psu", "case"],
     });
   });
 
@@ -522,7 +618,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu", "psu"],
+      missingComponents: ["cpu", "gpu", "psu", "case"],
       issues: [],
     });
   });
@@ -539,24 +635,27 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["gpu", "psu"],
+      missingComponents: ["gpu", "psu", "case"],
       issues: [],
     });
   });
 
   it("evaluates a complete compatible build", () => {
-    const build = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-            "motherboard-msi-b650-tomahawk-wifi",
+    const build = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+              "motherboard-msi-b650-tomahawk-wifi",
+            ),
+            "gpu-asus-prime-rtx-5070-oc",
           ),
-          "gpu-asus-prime-rtx-5070-oc",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-seasonic-focus-gx-750w",
       ),
-      "psu-seasonic-focus-gx-750w",
+      "case-corsair-4000d-airflow",
     );
 
     expect(evaluateBuild(build, catalog)).toEqual({
@@ -579,6 +678,7 @@ describe("evaluateBuild", () => {
       "motherboard",
       "memoryKit",
       "psu",
+      "case",
     ]);
   });
 
@@ -636,18 +736,21 @@ describe("evaluateBuild", () => {
   });
 
   it("keeps incompatible when PSU power fails", () => {
-    const build = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-            "motherboard-asus-prime-b760-plus",
+    const build = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-asus-prime-rtx-5070-oc",
           ),
-          "gpu-asus-prime-rtx-5070-oc",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-test-400w-12vhpwr",
       ),
-      "psu-test-400w-12vhpwr",
+      "case-corsair-4000d-airflow",
     );
     const testCatalog = {
       ...catalog,
@@ -671,18 +774,21 @@ describe("evaluateBuild", () => {
   });
 
   it("reports multiple incompatibilities as issues", () => {
-    const build = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-            "motherboard-asus-prime-b550m-a",
+    const build = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+              "motherboard-asus-prime-b550m-a",
+            ),
+            "gpu-asus-prime-rtx-5070-oc",
           ),
-          "gpu-asus-prime-rtx-5070-oc",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-aerocool-cylon-500w",
       ),
-      "psu-aerocool-cylon-500w",
+      "case-generic-compact-matx-260",
     );
 
     expect(evaluateBuild(build, catalog).issues).toEqual([
@@ -707,22 +813,30 @@ describe("evaluateBuild", () => {
         message:
           "La PSU no cubre los conectores dedicados requeridos por la GPU: 1x 12vhpwr.",
       },
+      {
+        code: "gpu-case-length-exceeded",
+        severity: "error",
+        message: "La GPU mide 304 mm y el gabinete soporta hasta 260 mm.",
+      },
     ]);
   });
 
   it("reports issues in deterministic compatibility-check order", () => {
-    const build = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-            "motherboard-asus-prime-b550m-a",
+    const build = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-asus-prime-rtx-5070-oc",
           ),
-          "gpu-asus-prime-rtx-5070-oc",
+          "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-aerocool-cylon-500w",
       ),
-      "psu-aerocool-cylon-500w",
+      "case-generic-compact-matx-260",
     );
 
     expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
@@ -731,23 +845,28 @@ describe("evaluateBuild", () => {
         "memory-motherboard-type-mismatch",
         "psu-insufficient-wattage",
         "psu-missing-gpu-power-connectors",
+        "motherboard-case-form-factor-mismatch",
+        "gpu-case-length-exceeded",
       ],
     );
   });
 
   it("updates power evaluation when GPU changes", () => {
-    const baseBuild = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-            "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-msi-rtx-4060-ventus-2x",
           ),
-          "gpu-msi-rtx-4060-ventus-2x",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-aerocool-cylon-500w",
       ),
-      "psu-aerocool-cylon-500w",
+      "case-corsair-4000d-airflow",
     );
     const withGpu = selectGpu(baseBuild, "gpu-asus-prime-rtx-5070-oc");
 
@@ -764,18 +883,21 @@ describe("evaluateBuild", () => {
   });
 
   it("updates power evaluation when CPU changes", () => {
-    const baseBuild = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
-            "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-msi-rtx-4060-ventus-2x",
           ),
-          "gpu-msi-rtx-4060-ventus-2x",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-generic-400w",
       ),
-      "psu-generic-400w",
+      "case-corsair-4000d-airflow",
     );
     const withCpu = selectCpu(baseBuild, "cpu-intel-core-i5-14600k");
 
@@ -792,18 +914,21 @@ describe("evaluateBuild", () => {
   });
 
   it("does not change power evaluation when motherboard changes", () => {
-    const baseBuild = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
-            "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-msi-rtx-4060-ventus-2x",
           ),
-          "gpu-msi-rtx-4060-ventus-2x",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-generic-400w",
       ),
-      "psu-generic-400w",
+      "case-corsair-4000d-airflow",
     );
     const withMotherboard = selectMotherboard(
       baseBuild,
@@ -816,18 +941,21 @@ describe("evaluateBuild", () => {
   });
 
   it("does not change power evaluation when RAM changes", () => {
-    const baseBuild = selectPsu(
-      selectMemoryKit(
-        selectGpu(
-          selectMotherboard(
-            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
-            "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCase(
+      selectPsu(
+        selectMemoryKit(
+          selectGpu(
+            selectMotherboard(
+              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+              "motherboard-asus-prime-b760-plus",
+            ),
+            "gpu-msi-rtx-4060-ventus-2x",
           ),
-          "gpu-msi-rtx-4060-ventus-2x",
+          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
         ),
-        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+        "psu-generic-400w",
       ),
-      "psu-generic-400w",
+      "case-corsair-4000d-airflow",
     );
     const withMemory = selectMemoryKit(
       baseBuild,
@@ -933,6 +1061,18 @@ describe("evaluateBuild", () => {
     expect(clientSource).not.toContain("powerConnectors");
     expect(clientSource).not.toContain("gpuPowerConnectors");
     expect(clientSource).not.toContain("pcie-");
+    expect(evaluateBuild).toBeTypeOf("function");
+  });
+
+  it("keeps case compatibility centralized outside React", () => {
+    const clientSource = readFileSync(
+      join(process.cwd(), "src/app/_components/pc-builder-client.tsx"),
+      "utf8",
+    );
+
+    expect(clientSource).not.toContain("supportedMotherboardFormFactors.includes");
+    expect(clientSource).not.toContain("lengthMm <=");
+    expect(clientSource).not.toContain("maxGpuLengthMm >=");
     expect(evaluateBuild).toBeTypeOf("function");
   });
 });

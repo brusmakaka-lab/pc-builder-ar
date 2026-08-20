@@ -3,12 +3,14 @@
 import { useMemo, useState } from "react";
 
 import {
+  clearCase,
   clearCpu,
   clearGpu,
   clearMemoryKit,
   clearMotherboard,
   clearPsu,
   createEmptyBuild,
+  selectCase,
   selectCpu,
   selectGpu,
   selectMemoryKit,
@@ -22,7 +24,14 @@ import {
   type BuildCompletion,
 } from "@/modules/builds/evaluate";
 import type { PcBuild } from "@/modules/builds/types";
-import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "@/modules/catalog/types";
+import type {
+  Cpu,
+  Gpu,
+  MemoryKit,
+  Motherboard,
+  PcCase,
+  Psu,
+} from "@/modules/catalog/types";
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
@@ -30,6 +39,7 @@ type PcBuilderClientProps = {
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
   psus: readonly Psu[];
+  cases: readonly PcCase[];
 };
 
 export function PcBuilderClient({
@@ -38,6 +48,7 @@ export function PcBuilderClient({
   gpus,
   memoryKits,
   psus,
+  cases,
 }: PcBuilderClientProps) {
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
@@ -46,6 +57,7 @@ export function PcBuilderClient({
   const selectedGpu = findById(gpus, build.gpuId);
   const selectedMemoryKit = findById(memoryKits, build.memoryKitId);
   const selectedPsu = findById(psus, build.psuId);
+  const selectedCase = findById(cases, build.caseId);
 
   const evaluation = useMemo(
     () =>
@@ -55,8 +67,9 @@ export function PcBuilderClient({
         gpus,
         memoryKits,
         psus,
+        cases,
       }),
-    [build, cpus, motherboards, gpus, memoryKits, psus],
+    [build, cpus, motherboards, gpus, memoryKits, psus, cases],
   );
 
   return (
@@ -141,6 +154,20 @@ export function PcBuilderClient({
             }
             onClear={() => setBuild((current) => clearPsu(current))}
           />
+
+          <ComponentSelect
+            label="Gabinete"
+            value={build.caseId}
+            placeholder="Seleccionar gabinete"
+            options={cases.map((pcCase) => ({
+              id: pcCase.id,
+              label: formatCase(pcCase),
+            }))}
+            onSelect={(componentId) =>
+              setBuild((current) => selectCase(current, componentId))
+            }
+            onClear={() => setBuild((current) => clearCase(current))}
+          />
         </div>
       </section>
 
@@ -188,6 +215,10 @@ export function PcBuilderClient({
           <BuildSummaryRow
             label="PSU"
             value={selectedPsu ? formatPsu(selectedPsu) : "No seleccionado"}
+          />
+          <BuildSummaryRow
+            label="Gabinete"
+            value={selectedCase ? formatCase(selectedCase) : "No seleccionado"}
           />
         </dl>
       </section>
@@ -273,6 +304,10 @@ function formatMemoryKit(memoryKit: MemoryKit) {
 
 function formatPsu(psu: Psu) {
   return `${psu.brand} ${psu.model} - ${psu.wattage} W`;
+}
+
+function formatCase(pcCase: PcCase) {
+  return `${pcCase.brand} ${pcCase.model} - ${pcCase.supportedMotherboardFormFactors.join("/")} / GPU ${pcCase.maxGpuLengthMm} mm`;
 }
 
 function findById<TItem extends { id: string }>(
@@ -380,6 +415,7 @@ function formatSlot(slot: BuildComponentSlot) {
     gpu: "GPU",
     memoryKit: "RAM",
     psu: "PSU",
+    case: "Gabinete",
   };
 
   return labels[slot];

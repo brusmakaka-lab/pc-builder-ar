@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAllCatalogComponents,
+  getAllCases,
   getAllCpus,
   getAllGpus,
   getAllMemoryKits,
@@ -22,6 +23,7 @@ describe("catalog fixtures", () => {
     expect(getAllGpus().length).toBeGreaterThan(0);
     expect(getAllMemoryKits().length).toBeGreaterThan(0);
     expect(getAllPsus().length).toBeGreaterThan(0);
+    expect(getAllCases().length).toBeGreaterThan(0);
   });
 
   it("keeps CPU specs usable for comparison", () => {
@@ -74,6 +76,18 @@ describe("catalog fixtures", () => {
           psu.brand.length > 0 &&
           psu.wattage > 0 &&
           psu.gpuPowerConnectors.every((connector) => connector.count > 0),
+      ),
+    ).toBe(true);
+  });
+
+  it("models cases with explicit physical limits", () => {
+    expect(
+      getAllCases().every(
+        (pcCase) =>
+          pcCase.brand.length > 0 &&
+          pcCase.model.length > 0 &&
+          pcCase.supportedMotherboardFormFactors.length > 0 &&
+          pcCase.maxGpuLengthMm > 0,
       ),
     ).toBe(true);
   });

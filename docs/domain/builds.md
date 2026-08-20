@@ -1,6 +1,6 @@
 # Builds Domain
 
-`PcBuild` representa una build temporal en memoria. Puede estar incompleta: CPU, motherboard, GPU, RAM y PSU son selecciones independientes y pueden ser `null`.
+`PcBuild` representa una build temporal en memoria. Puede estar incompleta: CPU, motherboard, GPU, RAM, PSU y gabinete son selecciones independientes y pueden ser `null`.
 
 ## IDs vs objetos
 
@@ -12,7 +12,8 @@ La build guarda IDs de componentes, no objetos completos:
   motherboardId: null,
   gpuId: "gpu-asus-prime-rtx-5070-oc",
   memoryKitId: null,
-  psuId: null
+  psuId: null,
+  caseId: null
 }
 ```
 
@@ -37,12 +38,14 @@ La evaluacion no modifica la build ni el catalogo. Seleccion y evaluacion son re
 
 Una build puede conservar selecciones incompatibles. Las incompatibilidades se reportan como issues, no se corrigen automaticamente.
 
-La evaluacion conoce cuatro reglas:
+La evaluacion conoce seis reglas:
 
 - CPU/motherboard: `cpu.socket` debe coincidir con `motherboard.socket`.
 - RAM/motherboard: `memoryKit.memoryType` debe coincidir con `motherboard.memoryType`.
 - PSU/potencia: `psu.wattage` debe cubrir la potencia minima estimada para CPU y GPU.
 - GPU/PSU conectores: la PSU debe poder asignar conectores de alimentacion dedicada para todos los requerimientos de la GPU.
+- Motherboard/gabinete: `motherboard.formFactor` debe estar listado en `pcCase.supportedMotherboardFormFactors`.
+- GPU/gabinete: `gpu.lengthMm` debe ser menor o igual a `pcCase.maxGpuLengthMm`.
 
 Las reglas viven en `src/modules/compatibility/` y `evaluateBuild` solo las orquesta contra los IDs seleccionados. La UI consume `BuildEvaluation`; no decide compatibilidad por su cuenta.
 
@@ -74,6 +77,10 @@ Los conectores se modelan como requisitos/capacidades estructuradas `{ type, cou
 
 Una capacidad `pcie-6-plus-2` de la PSU puede alimentar un requisito `pcie-6` o `pcie-8`, pero un conector disponible solo puede cubrir un requisito. No se modelan adaptadores: multiples PCIe 8-pin no satisfacen automaticamente un requisito `12vhpwr`, y `12vhpwr`/`12v-2x6` no se convierten entre si.
 
+El check motherboard/gabinete usa form factors explicitos. No infiere jerarquias: un gabinete que declara solo `ATX` no acepta automaticamente `MicroATX` salvo que `MicroATX` figure en `supportedMotherboardFormFactors`.
+
+El check GPU/gabinete compara milimetros exactos. Si `gpu.lengthMm` es igual a `pcCase.maxGpuLengthMm`, la GPU se considera compatible. No se agrega margen oculto.
+
 ## GPU y motherboard
 
 La compatibilidad estructural GPU/motherboard todavia no se evalua porque el catalogo actual no modela la interfaz de conexion de la GPU ni el slot de expansion de la motherboard.
@@ -84,4 +91,4 @@ La generacion PCIe no debe tratarse como incompatibilidad por defecto: una difer
 
 ## Fuera de scope
 
-No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, calidad de PSU, gabinete, cooling, benchmarks ni recomendaciones.
+No hay persistencia, builds guardadas, precios, tiendas, compatibilidad estructural GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, calidad de PSU, grosor de GPU, radiadores, coolers, bahias, cable clearance, benchmarks ni recomendaciones.

@@ -1,4 +1,4 @@
-import { cpus, gpus, memoryKits, motherboards, psus } from "./fixtures";
+import { cases, cpus, gpus, memoryKits, motherboards, psus } from "./fixtures";
 import type { CatalogComponent } from "./types";
 
 export function getAllCpus() {
@@ -21,6 +21,10 @@ export function getAllPsus() {
   return psus;
 }
 
+export function getAllCases() {
+  return cases;
+}
+
 export function getAllCatalogComponents(): readonly CatalogComponent[] {
-  return [...cpus, ...motherboards, ...gpus, ...memoryKits, ...psus];
+  return [...cpus, ...motherboards, ...gpus, ...memoryKits, ...psus, ...cases];
 }

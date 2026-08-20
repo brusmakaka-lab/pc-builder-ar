@@ -22,7 +22,8 @@ export type CatalogComponentKind =
   | "motherboard"
   | "gpu"
   | "memoryKit"
-  | "psu";
+  | "psu"
+  | "case";
 
 type BaseComponent = {
   id: ComponentId;
@@ -75,4 +76,10 @@ export type Psu = BaseComponent & {
   gpuPowerConnectors: readonly PowerConnectorRequirement[];
 };
 
-export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit | Psu;
+export type PcCase = BaseComponent & {
+  kind: "case";
+  supportedMotherboardFormFactors: readonly MotherboardFormFactor[];
+  maxGpuLengthMm: number;
+};
+
+export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit | Psu | PcCase;

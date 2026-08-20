@@ -1,4 +1,4 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "../catalog/types";
+import type { Cpu, Gpu, MemoryKit, Motherboard, PcCase, Psu } from "../catalog/types";
 import {
   checkCpuMotherboardCompatibility,
   type CpuMotherboardCompatibility,
@@ -12,6 +12,14 @@ import {
   type GpuPsuConnectorCompatibility,
 } from "../compatibility/gpu-psu-connectors";
 import {
+  checkGpuCaseCompatibility,
+  type GpuCaseCompatibility,
+} from "../compatibility/gpu-case";
+import {
+  checkMotherboardCaseCompatibility,
+  type MotherboardCaseCompatibility,
+} from "../compatibility/motherboard-case";
+import {
   checkPsuPowerCompatibility,
   type PsuPowerCompatibility,
 } from "../compatibility/psu-power";
@@ -23,7 +31,8 @@ export type BuildComponentSlot =
   | "motherboard"
   | "gpu"
   | "memoryKit"
-  | "psu";
+  | "psu"
+  | "case";
 
 export type BuildCompletion = "empty" | "partial" | "complete";
 
@@ -37,7 +46,9 @@ export type BuildIssue = {
     | "cpu-motherboard-socket-mismatch"
     | "memory-motherboard-type-mismatch"
     | "psu-insufficient-wattage"
-    | "psu-missing-gpu-power-connectors";
+    | "psu-missing-gpu-power-connectors"
+    | "motherboard-case-form-factor-mismatch"
+    | "gpu-case-length-exceeded";
   severity: "error";
   message: string;
 };
@@ -76,10 +87,21 @@ export type GpuPsuConnectorCompatibilityCatalog = {
   psus: readonly Psu[];
 };
 
+export type MotherboardCaseCompatibilityCatalog = {
+  motherboards: readonly Motherboard[];
+  cases: readonly PcCase[];
+};
+
+export type GpuCaseCompatibilityCatalog = {
+  gpus: readonly Gpu[];
+  cases: readonly PcCase[];
+};
+
 export type BuildEvaluationCatalog = CpuMotherboardCompatibilityCatalog & {
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
   psus: readonly Psu[];
+  cases: readonly PcCase[];
 };
 
 export function evaluateCpuMotherboardCompatibility(
@@ -161,6 +183,44 @@ export function evaluateGpuPsuConnectorCompatibility(
   return checkGpuPsuConnectorCompatibility(gpu, psu);
 }
 
+export function evaluateMotherboardCaseCompatibility(
+  build: PcBuild,
+  catalog: MotherboardCaseCompatibilityCatalog,
+): MotherboardCaseCompatibility | null {
+  if (!build.motherboardId || !build.caseId) {
+    return null;
+  }
+
+  const motherboard = catalog.motherboards.find(
+    (item) => item.id === build.motherboardId,
+  );
+  const pcCase = catalog.cases.find((item) => item.id === build.caseId);
+
+  if (!motherboard || !pcCase) {
+    return null;
+  }
+
+  return checkMotherboardCaseCompatibility(motherboard, pcCase);
+}
+
+export function evaluateGpuCaseCompatibility(
+  build: PcBuild,
+  catalog: GpuCaseCompatibilityCatalog,
+): GpuCaseCompatibility | null {
+  if (!build.gpuId || !build.caseId) {
+    return null;
+  }
+
+  const gpu = catalog.gpus.find((item) => item.id === build.gpuId);
+  const pcCase = catalog.cases.find((item) => item.id === build.caseId);
+
+  if (!gpu || !pcCase) {
+    return null;
+  }
+
+  return checkGpuCaseCompatibility(gpu, pcCase);
+}
+
 export function evaluateBuild(
   build: PcBuild,
   catalog: BuildEvaluationCatalog,
@@ -180,11 +240,18 @@ export function evaluateBuild(
     build,
     catalog,
   );
+  const motherboardCaseCompatibility = evaluateMotherboardCaseCompatibility(
+    build,
+    catalog,
+  );
+  const gpuCaseCompatibility = evaluateGpuCaseCompatibility(build, catalog);
   const issues = getBuildIssues(
     cpuMotherboardCompatibility,
     memoryMotherboardCompatibility,
     psuPowerCompatibility,
     gpuPsuConnectorCompatibility,
+    motherboardCaseCompatibility,
+    gpuCaseCompatibility,
   );
 
   return {
@@ -194,6 +261,8 @@ export function evaluateBuild(
       memoryMotherboardCompatibility,
       psuPowerCompatibility,
       gpuPsuConnectorCompatibility,
+      motherboardCaseCompatibility,
+      gpuCaseCompatibility,
     ]),
     missingComponents,
     issues,
@@ -224,6 +293,10 @@ function getMissingComponents(build: PcBuild): BuildComponentSlot[] {
     missingComponents.push("psu");
   }
 
+  if (!build.caseId) {
+    missingComponents.push("case");
+  }
+
   return missingComponents;
 }
 
@@ -236,7 +309,8 @@ function getBuildCompletion(
     !build.motherboardId &&
     !build.gpuId &&
     !build.memoryKitId &&
-    !build.psuId
+    !build.psuId &&
+    !build.caseId
   ) {
     return "empty";
   }
@@ -254,6 +328,8 @@ function getBuildCompatibilityStatus(
     | MemoryMotherboardCompatibility
     | PsuPowerCompatibility
     | GpuPsuConnectorCompatibility
+    | MotherboardCaseCompatibility
+    | GpuCaseCompatibility
     | null
   )[],
 ): BuildCompatibilityStatus {
@@ -277,6 +353,8 @@ function getBuildIssues(
   memoryMotherboardCompatibility: MemoryMotherboardCompatibility | null,
   psuPowerCompatibility: PsuPowerCompatibility | null,
   gpuPsuConnectorCompatibility: GpuPsuConnectorCompatibility | null,
+  motherboardCaseCompatibility: MotherboardCaseCompatibility | null,
+  gpuCaseCompatibility: GpuCaseCompatibility | null,
 ): BuildIssue[] {
   const issues: BuildIssue[] = [];
 
@@ -309,6 +387,22 @@ function getBuildIssues(
       code: "psu-missing-gpu-power-connectors",
       severity: "error",
       message: `La PSU no cubre los conectores dedicados requeridos por la GPU: ${formatMissingConnectors(gpuPsuConnectorCompatibility.reason.missingConnectors)}.`,
+    });
+  }
+
+  if (motherboardCaseCompatibility?.compatible === false) {
+    issues.push({
+      code: "motherboard-case-form-factor-mismatch",
+      severity: "error",
+      message: `El gabinete soporta ${motherboardCaseCompatibility.reason.supportedMotherboardFormFactors.join(", ")} y la motherboard utiliza ${motherboardCaseCompatibility.reason.motherboardFormFactor}.`,
+    });
+  }
+
+  if (gpuCaseCompatibility?.compatible === false) {
+    issues.push({
+      code: "gpu-case-length-exceeded",
+      severity: "error",
+      message: `La GPU mide ${gpuCaseCompatibility.reason.gpuLengthMm} mm y el gabinete soporta hasta ${gpuCaseCompatibility.reason.maxGpuLengthMm} mm.`,
     });
   }
 

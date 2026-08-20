@@ -1,4 +1,4 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard, Psu } from "./types";
+import type { Cpu, Gpu, MemoryKit, Motherboard, PcCase, Psu } from "./types";
 
 export const cpus = [
   {
@@ -274,3 +274,30 @@ export const psus = [
     ],
   },
 ] as const satisfies readonly Psu[];
+
+export const cases = [
+  {
+    id: "case-corsair-4000d-airflow",
+    kind: "case",
+    brand: "Corsair",
+    model: "4000D Airflow",
+    supportedMotherboardFormFactors: ["ATX", "MicroATX"],
+    maxGpuLengthMm: 360,
+  },
+  {
+    id: "case-cooler-master-n200",
+    kind: "case",
+    brand: "Cooler Master",
+    model: "N200",
+    supportedMotherboardFormFactors: ["MicroATX"],
+    maxGpuLengthMm: 355,
+  },
+  {
+    id: "case-generic-compact-matx-260",
+    kind: "case",
+    brand: "Generic",
+    model: "Compact mATX 260",
+    supportedMotherboardFormFactors: ["MicroATX"],
+    maxGpuLengthMm: 260,
+  },
+] as const satisfies readonly PcCase[];

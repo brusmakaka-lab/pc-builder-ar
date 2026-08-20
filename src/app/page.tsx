@@ -1,5 +1,6 @@
 import {
   getAllCpus,
+  getAllCases,
   getAllGpus,
   getAllMemoryKits,
   getAllMotherboards,
@@ -14,6 +15,7 @@ export default function Home() {
   const gpus = getAllGpus();
   const memoryKits = getAllMemoryKits();
   const psus = getAllPsus();
+  const cases = getAllCases();
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 px-6 py-12 sm:py-16">
@@ -32,6 +34,7 @@ export default function Home() {
         gpus={gpus}
         memoryKits={memoryKits}
         psus={psus}
+        cases={cases}
       />
     </main>
   );

@@ -6,6 +6,7 @@ export type PcBuild = {
   gpuId: ComponentId | null;
   memoryKitId: ComponentId | null;
   psuId: ComponentId | null;
+  caseId: ComponentId | null;
 };
 
 export const emptyBuild: PcBuild = {
@@ -14,4 +15,5 @@ export const emptyBuild: PcBuild = {
   gpuId: null,
   memoryKitId: null,
   psuId: null,
+  caseId: null,
 };

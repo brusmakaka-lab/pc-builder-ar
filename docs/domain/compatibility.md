@@ -107,8 +107,50 @@ Una GPU con `powerConnectors: []` no requiere alimentacion dedicada y pasa este 
 
 `pcie-6-plus-2` representa una capacidad de PSU que puede cubrir un requisito `pcie-6` o `pcie-8`, pero un conector no cubre dos requisitos simultaneos. No hay adaptadores implicitos: multiples `pcie-8` no equivalen a `12vhpwr`, y `12vhpwr`/`12v-2x6` no se convierten automaticamente.
 
+Motherboard contra gabinete:
+
+```text
+pcCase.supportedMotherboardFormFactors incluye motherboard.formFactor
+```
+
+La lista de form factors soportados reutiliza `MotherboardFormFactor`. La regla no infiere jerarquias: un gabinete que declara solo `ATX` no acepta `MicroATX` automaticamente.
+
+Si el form factor de la motherboard no esta listado por el gabinete, el resultado es incompatible con un motivo tipado:
+
+```ts
+{
+  compatible: false,
+  reason: {
+    code: "FORM_FACTOR_NOT_SUPPORTED",
+    motherboardFormFactor: "ATX",
+    supportedMotherboardFormFactors: ["MicroATX"]
+  }
+}
+```
+
+GPU contra gabinete:
+
+```text
+gpu.lengthMm <= pcCase.maxGpuLengthMm
+```
+
+La comparacion usa milimetros exactos y no aplica margen oculto. La igualdad es compatible.
+
+Si la GPU excede la longitud maxima del gabinete, el resultado es incompatible con un motivo tipado:
+
+```ts
+{
+  compatible: false,
+  reason: {
+    code: "GPU_LENGTH_EXCEEDED",
+    gpuLengthMm: 304,
+    maxGpuLengthMm: 260
+  }
+}
+```
+
 ## Fuera de scope
 
-No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, gabinete, GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, adapters, splitters, daisy-chain, calidad de fuente, certificacion, eficiencia, dimensiones fisicas ni consumo total. En particular, GPU/motherboard no se evalua todavia porque el catalogo no representa interfaz de GPU ni slot de expansion de motherboard.
+No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, adapters, splitters, daisy-chain, calidad de fuente, certificacion, eficiencia, grosor de GPU, radiadores, coolers, bahias, cable clearance ni consumo total. En particular, GPU/motherboard no se evalua todavia porque el catalogo no representa interfaz de GPU ni slot de expansion de motherboard.
 
 La generacion PCIe por si sola no es una regla de incompatibilidad estructural: diferencias de generacion pueden afectar ancho de banda o rendimiento, pero no deben reportarse como error si la interfaz sigue siendo retrocompatible.
