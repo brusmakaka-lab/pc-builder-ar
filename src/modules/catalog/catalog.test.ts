@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   getAllCatalogComponents,
   getAllCases,
+  getAllCpuCoolers,
   getAllCpus,
   getAllGpus,
   getAllMemoryKits,
@@ -19,6 +20,7 @@ describe("catalog fixtures", () => {
 
   it("exposes all supported component groups", () => {
     expect(getAllCpus().length).toBeGreaterThan(0);
+    expect(getAllCpuCoolers().length).toBeGreaterThan(0);
     expect(getAllMotherboards().length).toBeGreaterThan(0);
     expect(getAllGpus().length).toBeGreaterThan(0);
     expect(getAllMemoryKits().length).toBeGreaterThan(0);
@@ -31,6 +33,18 @@ describe("catalog fixtures", () => {
       getAllCpus().every(
         (cpu) =>
           cpu.cores > 0 && cpu.threads >= cpu.cores && cpu.tdpWatts > 0,
+      ),
+    ).toBe(true);
+  });
+
+  it("models CPU coolers with explicit socket support and height", () => {
+    expect(
+      getAllCpuCoolers().every(
+        (cpuCooler) =>
+          cpuCooler.brand.length > 0 &&
+          cpuCooler.model.length > 0 &&
+          cpuCooler.supportedSockets.length > 0 &&
+          cpuCooler.heightMm > 0,
       ),
     ).toBe(true);
   });
@@ -87,7 +101,8 @@ describe("catalog fixtures", () => {
           pcCase.brand.length > 0 &&
           pcCase.model.length > 0 &&
           pcCase.supportedMotherboardFormFactors.length > 0 &&
-          pcCase.maxGpuLengthMm > 0,
+          pcCase.maxGpuLengthMm > 0 &&
+          pcCase.maxCpuCoolerHeightMm > 0,
       ),
     ).toBe(true);
   });

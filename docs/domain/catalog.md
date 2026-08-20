@@ -5,20 +5,21 @@ El catalogo representa componentes controlados en memoria para desarrollo y test
 ## Componentes
 
 - `Cpu`: marca, modelo, socket, nucleos, threads y TDP en watts.
+- `CpuCooler`: cooler por aire con sockets de CPU soportados y altura en milimetros.
 - `Motherboard`: marca, modelo, socket, chipset, form factor, tipo de memoria y slots de memoria.
 - `Gpu`: distingue fabricante/modelo de placa (`boardBrand`, `boardModel`) del chip grafico (`chipBrand`, `gpuModel`) e incluye conectores de alimentacion dedicados requeridos.
 - `MemoryKit`: representa kits completos de RAM, no modulos individuales. Incluye tipo de memoria, capacidad total, cantidad de modulos y velocidad.
 - `Psu`: fuente de alimentacion con potencia nominal en watts y conectores disponibles para GPU.
-- `PcCase`: gabinete con form factors de motherboard soportados y longitud maxima de GPU en milimetros.
+- `PcCase`: gabinete con form factors de motherboard soportados, longitud maxima de GPU y altura maxima de cooler CPU en milimetros.
 
 ## Decisiones
 
-Los IDs son strings estables y legibles, independientes del texto mostrado en UI. Las cantidades usan unidades explicitas (`tdpWatts`, `boardPowerWatts`, `wattage`, `vramGb`, `capacityGb`, `speedMtS`, `lengthMm`, `maxGpuLengthMm`) para evitar strings ambiguos.
+Los IDs son strings estables y legibles, independientes del texto mostrado en UI. Las cantidades usan unidades explicitas (`tdpWatts`, `boardPowerWatts`, `wattage`, `vramGb`, `capacityGb`, `speedMtS`, `lengthMm`, `heightMm`, `maxGpuLengthMm`, `maxCpuCoolerHeightMm`) para evitar strings ambiguos.
 
 Los conectores de alimentacion GPU usan datos estructurados `{ type, count }`, no strings libres. Una GPU sin alimentacion dedicada usa `powerConnectors: []`.
 
-Se usan unions solo para conjuntos cerrados del dataset inicial: sockets, tipos de memoria, form factors, marcas de CPU y marcas del chip de GPU. El gabinete reutiliza `MotherboardFormFactor` para declarar soporte de motherboard, sin duplicar strings. Las marcas de placas y modelos quedan como strings para no convertir el catalogo en una lista rigida innecesaria.
+Se usan unions solo para conjuntos cerrados del dataset inicial: sockets, tipos de memoria, form factors, marcas de CPU y marcas del chip de GPU. El cooler reutiliza `CpuSocket` para declarar soporte de CPU, sin duplicar strings. El gabinete reutiliza `MotherboardFormFactor` para declarar soporte de motherboard, sin duplicar strings. Las marcas de placas y modelos quedan como strings para no convertir el catalogo en una lista rigida innecesaria.
 
 ## Fuera de scope
 
-No se modelan precios, disponibilidad, tiendas, historial, benchmarks, calidad de fuente, certificaciones, conectores no GPU, 3D, afiliados ni persistencia. En gabinetes no se modelan grosor de GPU, radiadores, coolers, bahias, manejo de cables ni clearance adicional. Esos limites se agregaran cuando el flujo lo requiera.
+No se modelan precios, disponibilidad, tiendas, historial, benchmarks, calidad de fuente, certificaciones, conectores no GPU, 3D, afiliados ni persistencia. En gabinetes y coolers no se modelan grosor de GPU, AIO, radiadores, posiciones de montaje, RAM clearance, VRM clearance, bahias, manejo de cables, rendimiento termico, ruido, RPM ni clearance adicional. Esos limites se agregaran cuando el flujo lo requiera.

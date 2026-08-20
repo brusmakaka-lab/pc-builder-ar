@@ -1,8 +1,20 @@
-import { cases, cpus, gpus, memoryKits, motherboards, psus } from "./fixtures";
+import {
+  cases,
+  cpuCoolers,
+  cpus,
+  gpus,
+  memoryKits,
+  motherboards,
+  psus,
+} from "./fixtures";
 import type { CatalogComponent } from "./types";
 
 export function getAllCpus() {
   return cpus;
+}
+
+export function getAllCpuCoolers() {
+  return cpuCoolers;
 }
 
 export function getAllMotherboards() {
@@ -26,5 +38,13 @@ export function getAllCases() {
 }
 
 export function getAllCatalogComponents(): readonly CatalogComponent[] {
-  return [...cpus, ...motherboards, ...gpus, ...memoryKits, ...psus, ...cases];
+  return [
+    ...cpus,
+    ...cpuCoolers,
+    ...motherboards,
+    ...gpus,
+    ...memoryKits,
+    ...psus,
+    ...cases,
+  ];
 }

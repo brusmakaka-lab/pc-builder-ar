@@ -19,6 +19,7 @@ export type PowerConnectorRequirement = {
 
 export type CatalogComponentKind =
   | "cpu"
+  | "cpuCooler"
   | "motherboard"
   | "gpu"
   | "memoryKit"
@@ -39,6 +40,12 @@ export type Cpu = BaseComponent & {
   cores: number;
   threads: number;
   tdpWatts: number;
+};
+
+export type CpuCooler = BaseComponent & {
+  kind: "cpuCooler";
+  supportedSockets: readonly CpuSocket[];
+  heightMm: number;
 };
 
 export type Motherboard = BaseComponent & {
@@ -80,6 +87,14 @@ export type PcCase = BaseComponent & {
   kind: "case";
   supportedMotherboardFormFactors: readonly MotherboardFormFactor[];
   maxGpuLengthMm: number;
+  maxCpuCoolerHeightMm: number;
 };
 
-export type CatalogComponent = Cpu | Motherboard | Gpu | MemoryKit | Psu | PcCase;
+export type CatalogComponent =
+  | Cpu
+  | CpuCooler
+  | Motherboard
+  | Gpu
+  | MemoryKit
+  | Psu
+  | PcCase;

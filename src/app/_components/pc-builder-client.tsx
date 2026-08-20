@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import {
   clearCase,
   clearCpu,
+  clearCpuCooler,
   clearGpu,
   clearMemoryKit,
   clearMotherboard,
@@ -12,6 +13,7 @@ import {
   createEmptyBuild,
   selectCase,
   selectCpu,
+  selectCpuCooler,
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
@@ -26,6 +28,7 @@ import {
 import type { PcBuild } from "@/modules/builds/types";
 import type {
   Cpu,
+  CpuCooler,
   Gpu,
   MemoryKit,
   Motherboard,
@@ -35,6 +38,7 @@ import type {
 
 type PcBuilderClientProps = {
   cpus: readonly Cpu[];
+  cpuCoolers: readonly CpuCooler[];
   motherboards: readonly Motherboard[];
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
@@ -44,6 +48,7 @@ type PcBuilderClientProps = {
 
 export function PcBuilderClient({
   cpus,
+  cpuCoolers,
   motherboards,
   gpus,
   memoryKits,
@@ -53,6 +58,7 @@ export function PcBuilderClient({
   const [build, setBuild] = useState<PcBuild>(() => createEmptyBuild());
 
   const selectedCpu = findById(cpus, build.cpuId);
+  const selectedCpuCooler = findById(cpuCoolers, build.cpuCoolerId);
   const selectedMotherboard = findById(motherboards, build.motherboardId);
   const selectedGpu = findById(gpus, build.gpuId);
   const selectedMemoryKit = findById(memoryKits, build.memoryKitId);
@@ -63,13 +69,14 @@ export function PcBuilderClient({
     () =>
       evaluateBuild(build, {
         cpus,
+        cpuCoolers,
         motherboards,
         gpus,
         memoryKits,
         psus,
         cases,
       }),
-    [build, cpus, motherboards, gpus, memoryKits, psus, cases],
+    [build, cpus, cpuCoolers, motherboards, gpus, memoryKits, psus, cases],
   );
 
   return (
@@ -97,6 +104,20 @@ export function PcBuilderClient({
               setBuild((current) => selectCpu(current, componentId))
             }
             onClear={() => setBuild((current) => clearCpu(current))}
+          />
+
+          <ComponentSelect
+            label="CPU Cooler"
+            value={build.cpuCoolerId}
+            placeholder="Seleccionar CPU cooler"
+            options={cpuCoolers.map((cpuCooler) => ({
+              id: cpuCooler.id,
+              label: formatCpuCooler(cpuCooler),
+            }))}
+            onSelect={(componentId) =>
+              setBuild((current) => selectCpuCooler(current, componentId))
+            }
+            onClear={() => setBuild((current) => clearCpuCooler(current))}
           />
 
           <ComponentSelect
@@ -185,6 +206,14 @@ export function PcBuilderClient({
             value={
               selectedCpu
                 ? `${selectedCpu.brand} ${selectedCpu.model}`
+                : "No seleccionado"
+            }
+          />
+          <BuildSummaryRow
+            label="CPU Cooler"
+            value={
+              selectedCpuCooler
+                ? formatCpuCooler(selectedCpuCooler)
                 : "No seleccionado"
             }
           />
@@ -306,8 +335,12 @@ function formatPsu(psu: Psu) {
   return `${psu.brand} ${psu.model} - ${psu.wattage} W`;
 }
 
+function formatCpuCooler(cpuCooler: CpuCooler) {
+  return `${cpuCooler.brand} ${cpuCooler.model} - ${cpuCooler.supportedSockets.join("/")} / ${cpuCooler.heightMm} mm`;
+}
+
 function formatCase(pcCase: PcCase) {
-  return `${pcCase.brand} ${pcCase.model} - ${pcCase.supportedMotherboardFormFactors.join("/")} / GPU ${pcCase.maxGpuLengthMm} mm`;
+  return `${pcCase.brand} ${pcCase.model} - ${pcCase.supportedMotherboardFormFactors.join("/")} / GPU ${pcCase.maxGpuLengthMm} mm / Cooler ${pcCase.maxCpuCoolerHeightMm} mm`;
 }
 
 function findById<TItem extends { id: string }>(
@@ -411,6 +444,7 @@ function formatCompatibility(compatibility: BuildCompatibilityStatus) {
 function formatSlot(slot: BuildComponentSlot) {
   const labels: Record<BuildComponentSlot, string> = {
     cpu: "CPU",
+    cpuCooler: "CPU Cooler",
     motherboard: "Motherboard",
     gpu: "GPU",
     memoryKit: "RAM",

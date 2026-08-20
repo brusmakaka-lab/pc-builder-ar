@@ -23,7 +23,7 @@ else:
   compatible
 ```
 
-`evaluateBuild` conserva el orden explicito de reglas porque ese orden tambien gobierna los issues. No existe un `CompatibilityEngine` generico: con seis reglas conocidas, una lista explicita es mas legible que un registry o sistema de plugins.
+`evaluateBuild` conserva el orden explicito de reglas porque ese orden tambien gobierna los issues. No existe un `CompatibilityEngine` generico: con las reglas conocidas, una lista explicita es mas legible que un registry o sistema de plugins.
 
 ## Reglas implementadas
 
@@ -172,8 +172,50 @@ Si la GPU excede la longitud maxima del gabinete, el resultado es incompatible c
 }
 ```
 
+CPU contra CPU cooler:
+
+```text
+cpuCooler.supportedSockets incluye cpu.socket
+```
+
+La lista de sockets soportados reutiliza `CpuSocket`. La regla no infiere compatibilidad por chipset, generacion ni marca.
+
+Si el socket de la CPU no esta listado por el cooler, el resultado es incompatible con un motivo tipado:
+
+```ts
+{
+  compatible: false,
+  reason: {
+    code: "CPU_SOCKET_NOT_SUPPORTED",
+    cpuSocket: "AM5",
+    supportedSockets: ["AM4"]
+  }
+}
+```
+
+CPU cooler contra gabinete:
+
+```text
+cpuCooler.heightMm <= pcCase.maxCpuCoolerHeightMm
+```
+
+La comparacion usa milimetros exactos y no aplica margen oculto. La igualdad es compatible.
+
+Si el cooler excede la altura maxima del gabinete, el resultado es incompatible con un motivo tipado:
+
+```ts
+{
+  compatible: false,
+  reason: {
+    code: "CPU_COOLER_HEIGHT_EXCEEDED",
+    cpuCoolerHeightMm: 165,
+    maxCpuCoolerHeightMm: 150
+  }
+}
+```
+
 ## Fuera de scope
 
-No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, adapters, splitters, daisy-chain, calidad de fuente, certificacion, eficiencia, grosor de GPU, radiadores, coolers, bahias, cable clearance ni consumo total. En particular, GPU/motherboard no se evalua todavia porque el catalogo no representa interfaz de GPU ni slot de expansion de motherboard.
+No se modela compatibilidad por BIOS, chipset, cantidad de slots RAM, GPU/motherboard, conectores CPU EPS, conectores ATX motherboard, SATA, Molex, adapters, splitters, daisy-chain, calidad de fuente, certificacion, eficiencia, grosor de GPU, AIO, radiadores, posiciones de montaje, RAM clearance, VRM clearance, rendimiento termico, ruido, RPM, bahias, cable clearance ni consumo total. En particular, GPU/motherboard no se evalua todavia porque el catalogo no representa interfaz de GPU ni slot de expansion de motherboard.
 
 La generacion PCIe por si sola no es una regla de incompatibilidad estructural: diferencias de generacion pueden afectar ancho de banda o rendimiento, pero no deben reportarse como error si la interfaz sigue siendo retrocompatible.

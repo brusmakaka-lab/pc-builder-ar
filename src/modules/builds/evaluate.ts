@@ -1,4 +1,20 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard, PcCase, Psu } from "../catalog/types";
+import type {
+  Cpu,
+  CpuCooler,
+  Gpu,
+  MemoryKit,
+  Motherboard,
+  PcCase,
+  Psu,
+} from "../catalog/types";
+import {
+  checkCpuCoolerCaseCompatibility,
+  type CpuCoolerCaseCompatibility,
+} from "../compatibility/cpu-cooler-case";
+import {
+  checkCpuCoolerSocketCompatibility,
+  type CpuCoolerSocketCompatibility,
+} from "../compatibility/cpu-cooler-socket";
 import {
   checkCpuMotherboardCompatibility,
   type CpuMotherboardCompatibility,
@@ -36,7 +52,8 @@ export type BuildComponentSlot =
   | "gpu"
   | "memoryKit"
   | "psu"
-  | "case";
+  | "case"
+  | "cpuCooler";
 
 export type BuildCompletion = "empty" | "partial" | "complete";
 
@@ -49,7 +66,9 @@ export type BuildIssue = {
     | "psu-insufficient-wattage"
     | "psu-missing-gpu-power-connectors"
     | "motherboard-case-form-factor-mismatch"
-    | "gpu-case-length-exceeded";
+    | "gpu-case-length-exceeded"
+    | "cpu-cooler-socket-mismatch"
+    | "cpu-cooler-case-height-exceeded";
   severity: "error";
   message: string;
 };
@@ -70,6 +89,11 @@ export type BuildEvaluation = {
 export type CpuMotherboardCompatibilityCatalog = {
   cpus: readonly Cpu[];
   motherboards: readonly Motherboard[];
+};
+
+export type CpuCoolerSocketCompatibilityCatalog = {
+  cpus: readonly Cpu[];
+  cpuCoolers: readonly CpuCooler[];
 };
 
 export type MemoryMotherboardCompatibilityCatalog = {
@@ -99,9 +123,15 @@ export type GpuCaseCompatibilityCatalog = {
 };
 
 export type BuildEvaluationCatalog = CpuMotherboardCompatibilityCatalog & {
+  cpuCoolers: readonly CpuCooler[];
   gpus: readonly Gpu[];
   memoryKits: readonly MemoryKit[];
   psus: readonly Psu[];
+  cases: readonly PcCase[];
+};
+
+export type CpuCoolerCaseCompatibilityCatalog = {
+  cpuCoolers: readonly CpuCooler[];
   cases: readonly PcCase[];
 };
 
@@ -123,6 +153,26 @@ export function evaluateCpuMotherboardCompatibility(
   }
 
   return checkCpuMotherboardCompatibility(cpu, motherboard);
+}
+
+export function evaluateCpuCoolerSocketCompatibility(
+  build: PcBuild,
+  catalog: CpuCoolerSocketCompatibilityCatalog,
+): CpuCoolerSocketCompatibility | null {
+  if (!build.cpuId || !build.cpuCoolerId) {
+    return null;
+  }
+
+  const cpu = catalog.cpus.find((item) => item.id === build.cpuId);
+  const cpuCooler = catalog.cpuCoolers.find(
+    (item) => item.id === build.cpuCoolerId,
+  );
+
+  if (!cpu || !cpuCooler) {
+    return null;
+  }
+
+  return checkCpuCoolerSocketCompatibility(cpu, cpuCooler);
 }
 
 export function evaluateMemoryMotherboardCompatibility(
@@ -222,6 +272,26 @@ export function evaluateGpuCaseCompatibility(
   return checkGpuCaseCompatibility(gpu, pcCase);
 }
 
+export function evaluateCpuCoolerCaseCompatibility(
+  build: PcBuild,
+  catalog: CpuCoolerCaseCompatibilityCatalog,
+): CpuCoolerCaseCompatibility | null {
+  if (!build.cpuCoolerId || !build.caseId) {
+    return null;
+  }
+
+  const cpuCooler = catalog.cpuCoolers.find(
+    (item) => item.id === build.cpuCoolerId,
+  );
+  const pcCase = catalog.cases.find((item) => item.id === build.caseId);
+
+  if (!cpuCooler || !pcCase) {
+    return null;
+  }
+
+  return checkCpuCoolerCaseCompatibility(cpuCooler, pcCase);
+}
+
 export function evaluateBuild(
   build: PcBuild,
   catalog: BuildEvaluationCatalog,
@@ -246,6 +316,14 @@ export function evaluateBuild(
     catalog,
   );
   const gpuCaseCompatibility = evaluateGpuCaseCompatibility(build, catalog);
+  const cpuCoolerSocketCompatibility = evaluateCpuCoolerSocketCompatibility(
+    build,
+    catalog,
+  );
+  const cpuCoolerCaseCompatibility = evaluateCpuCoolerCaseCompatibility(
+    build,
+    catalog,
+  );
   const issues = getBuildIssues(
     cpuMotherboardCompatibility,
     memoryMotherboardCompatibility,
@@ -253,6 +331,8 @@ export function evaluateBuild(
     gpuPsuConnectorCompatibility,
     motherboardCaseCompatibility,
     gpuCaseCompatibility,
+    cpuCoolerSocketCompatibility,
+    cpuCoolerCaseCompatibility,
   );
 
   return {
@@ -264,6 +344,8 @@ export function evaluateBuild(
       gpuPsuConnectorCompatibility,
       motherboardCaseCompatibility,
       gpuCaseCompatibility,
+      cpuCoolerSocketCompatibility,
+      cpuCoolerCaseCompatibility,
     ]),
     missingComponents,
     issues,
@@ -298,6 +380,10 @@ function getMissingComponents(build: PcBuild): BuildComponentSlot[] {
     missingComponents.push("case");
   }
 
+  if (!build.cpuCoolerId) {
+    missingComponents.push("cpuCooler");
+  }
+
   return missingComponents;
 }
 
@@ -311,7 +397,8 @@ function getBuildCompletion(
     !build.gpuId &&
     !build.memoryKitId &&
     !build.psuId &&
-    !build.caseId
+    !build.caseId &&
+    !build.cpuCoolerId
   ) {
     return "empty";
   }
@@ -330,6 +417,8 @@ function getBuildIssues(
   gpuPsuConnectorCompatibility: GpuPsuConnectorCompatibility | null,
   motherboardCaseCompatibility: MotherboardCaseCompatibility | null,
   gpuCaseCompatibility: GpuCaseCompatibility | null,
+  cpuCoolerSocketCompatibility: CpuCoolerSocketCompatibility | null,
+  cpuCoolerCaseCompatibility: CpuCoolerCaseCompatibility | null,
 ): BuildIssue[] {
   const issues: BuildIssue[] = [];
 
@@ -378,6 +467,22 @@ function getBuildIssues(
       code: "gpu-case-length-exceeded",
       severity: "error",
       message: `La GPU mide ${gpuCaseCompatibility.reason.gpuLengthMm} mm y el gabinete soporta hasta ${gpuCaseCompatibility.reason.maxGpuLengthMm} mm.`,
+    });
+  }
+
+  if (cpuCoolerSocketCompatibility?.compatible === false) {
+    issues.push({
+      code: "cpu-cooler-socket-mismatch",
+      severity: "error",
+      message: `La CPU utiliza ${cpuCoolerSocketCompatibility.reason.cpuSocket} y el cooler soporta ${cpuCoolerSocketCompatibility.reason.supportedSockets.join(", ")}.`,
+    });
+  }
+
+  if (cpuCoolerCaseCompatibility?.compatible === false) {
+    issues.push({
+      code: "cpu-cooler-case-height-exceeded",
+      severity: "error",
+      message: `El cooler mide ${cpuCoolerCaseCompatibility.reason.cpuCoolerHeightMm} mm y el gabinete soporta hasta ${cpuCoolerCaseCompatibility.reason.maxCpuCoolerHeightMm} mm.`,
     });
   }
 

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   getAllCases,
+  getAllCpuCoolers,
   getAllCpus,
   getAllGpus,
   getAllMemoryKits,
@@ -16,6 +17,7 @@ import {
   createEmptyBuild,
   selectCase,
   selectCpu,
+  selectCpuCooler,
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
@@ -23,6 +25,8 @@ import {
 } from "./build";
 import {
   evaluateBuild,
+  evaluateCpuCoolerCaseCompatibility,
+  evaluateCpuCoolerSocketCompatibility,
   evaluateCpuMotherboardCompatibility,
   evaluateGpuCaseCompatibility,
   evaluateGpuPsuConnectorCompatibility,
@@ -33,6 +37,7 @@ import {
 
 const catalog = {
   cpus: getAllCpus(),
+  cpuCoolers: getAllCpuCoolers(),
   motherboards: getAllMotherboards(),
   gpus: getAllGpus(),
   memoryKits: getAllMemoryKits(),
@@ -95,6 +100,62 @@ describe("evaluateCpuMotherboardCompatibility", () => {
     expect(evaluateCpuMotherboardCompatibility(baseBuild, catalog)).toEqual(
       evaluateCpuMotherboardCompatibility(withMemory, catalog),
     );
+  });
+});
+
+describe("evaluateCpuCoolerSocketCompatibility", () => {
+  it("returns unknown when CPU is absent", () => {
+    const build = selectCpuCooler(
+      createEmptyBuild(),
+      "cpu-cooler-deepcool-ag400",
+    );
+
+    expect(evaluateCpuCoolerSocketCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when CPU cooler is absent", () => {
+    const build = selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600");
+
+    expect(evaluateCpuCoolerSocketCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible for a supported CPU socket", () => {
+    const build = selectCpuCooler(
+      selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+      "cpu-cooler-deepcool-ag400",
+    );
+
+    expect(evaluateCpuCoolerSocketCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns incompatible for an unsupported CPU socket", () => {
+    const build = selectCpuCooler(
+      selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+      "cpu-cooler-compact-am4-120",
+    );
+
+    expect(evaluateCpuCoolerSocketCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "CPU_SOCKET_NOT_SUPPORTED",
+        cpuSocket: "AM5",
+        supportedSockets: ["AM4"],
+      },
+    });
+  });
+
+  it("does not mutate the original build", () => {
+    const build = selectCpuCooler(
+      selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+      "cpu-cooler-deepcool-ag400",
+    );
+    const before = { ...build };
+
+    evaluateCpuCoolerSocketCompatibility(build, catalog);
+
+    expect(build).toEqual(before);
   });
 });
 
@@ -502,12 +563,68 @@ describe("evaluateGpuCaseCompatibility", () => {
   });
 });
 
+describe("evaluateCpuCoolerCaseCompatibility", () => {
+  it("returns unknown when CPU cooler is absent", () => {
+    const build = selectCase(createEmptyBuild(), "case-corsair-4000d-airflow");
+
+    expect(evaluateCpuCoolerCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns unknown when case is absent", () => {
+    const build = selectCpuCooler(
+      createEmptyBuild(),
+      "cpu-cooler-deepcool-ag400",
+    );
+
+    expect(evaluateCpuCoolerCaseCompatibility(build, catalog)).toBeNull();
+  });
+
+  it("returns compatible when the cooler fits the case height limit", () => {
+    const build = selectCase(
+      selectCpuCooler(createEmptyBuild(), "cpu-cooler-deepcool-ag400"),
+      "case-corsair-4000d-airflow",
+    );
+
+    expect(evaluateCpuCoolerCaseCompatibility(build, catalog)).toEqual({
+      compatible: true,
+    });
+  });
+
+  it("returns incompatible when the cooler exceeds the case height limit", () => {
+    const build = selectCase(
+      selectCpuCooler(createEmptyBuild(), "cpu-cooler-noctua-nh-d15"),
+      "case-generic-compact-matx-260",
+    );
+
+    expect(evaluateCpuCoolerCaseCompatibility(build, catalog)).toEqual({
+      compatible: false,
+      reason: {
+        code: "CPU_COOLER_HEIGHT_EXCEEDED",
+        cpuCoolerHeightMm: 165,
+        maxCpuCoolerHeightMm: 150,
+      },
+    });
+  });
+
+  it("does not mutate the original build", () => {
+    const build = selectCase(
+      selectCpuCooler(createEmptyBuild(), "cpu-cooler-deepcool-ag400"),
+      "case-corsair-4000d-airflow",
+    );
+    const before = { ...build };
+
+    evaluateCpuCoolerCaseCompatibility(build, catalog);
+
+    expect(build).toEqual(before);
+  });
+});
+
 describe("evaluateBuild", () => {
   it("evaluates an empty build", () => {
     expect(evaluateBuild(createEmptyBuild(), catalog)).toEqual({
       completion: "empty",
       compatibility: "unknown",
-      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit", "psu", "case"],
+      missingComponents: ["cpu", "motherboard", "gpu", "memoryKit", "psu", "case", "cpuCooler"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -522,7 +639,7 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["motherboard", "gpu", "memoryKit", "psu", "case"],
+      missingComponents: ["motherboard", "gpu", "memoryKit", "psu", "case", "cpuCooler"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -543,7 +660,7 @@ describe("evaluateBuild", () => {
     ).toEqual({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu", "memoryKit", "psu", "case"],
+      missingComponents: ["cpu", "gpu", "memoryKit", "psu", "case", "cpuCooler"],
       issues: [],
       power: {
         estimatedLoadWatts: null,
@@ -561,7 +678,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["gpu", "memoryKit", "psu", "case"],
+      missingComponents: ["gpu", "memoryKit", "psu", "case", "cpuCooler"],
       issues: [],
     });
   });
@@ -575,7 +692,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toEqual({
       completion: "partial",
       compatibility: "incompatible",
-      missingComponents: ["gpu", "memoryKit", "psu", "case"],
+      missingComponents: ["gpu", "memoryKit", "psu", "case", "cpuCooler"],
       issues: [
         {
           code: "cpu-motherboard-socket-mismatch",
@@ -602,7 +719,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["memoryKit", "psu", "case"],
+      missingComponents: ["memoryKit", "psu", "case", "cpuCooler"],
     });
   });
 
@@ -618,7 +735,7 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["cpu", "gpu", "psu", "case"],
+      missingComponents: ["cpu", "gpu", "psu", "case", "cpuCooler"],
       issues: [],
     });
   });
@@ -635,27 +752,30 @@ describe("evaluateBuild", () => {
     expect(evaluateBuild(build, catalog)).toMatchObject({
       completion: "partial",
       compatibility: "unknown",
-      missingComponents: ["gpu", "psu", "case"],
+      missingComponents: ["gpu", "psu", "case", "cpuCooler"],
       issues: [],
     });
   });
 
   it("evaluates a complete compatible build", () => {
-    const build = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-              "motherboard-msi-b650-tomahawk-wifi",
+    const build = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+                "motherboard-msi-b650-tomahawk-wifi",
+              ),
+              "gpu-asus-prime-rtx-5070-oc",
             ),
-            "gpu-asus-prime-rtx-5070-oc",
+            "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
           ),
-          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+          "psu-seasonic-focus-gx-750w",
         ),
-        "psu-seasonic-focus-gx-750w",
+        "case-corsair-4000d-airflow",
       ),
-      "case-corsair-4000d-airflow",
+      "cpu-cooler-deepcool-ag400",
     );
 
     expect(evaluateBuild(build, catalog)).toEqual({
@@ -679,6 +799,7 @@ describe("evaluateBuild", () => {
       "memoryKit",
       "psu",
       "case",
+      "cpuCooler",
     ]);
   });
 
@@ -774,21 +895,24 @@ describe("evaluateBuild", () => {
   });
 
   it("reports multiple incompatibilities as issues", () => {
-    const build = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-              "motherboard-asus-prime-b550m-a",
+    const build = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+                "motherboard-asus-prime-b550m-a",
+              ),
+              "gpu-asus-prime-rtx-5070-oc",
             ),
-            "gpu-asus-prime-rtx-5070-oc",
+            "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
           ),
-          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+          "psu-aerocool-cylon-500w",
         ),
-        "psu-aerocool-cylon-500w",
+        "case-generic-compact-matx-260",
       ),
-      "case-generic-compact-matx-260",
+      "cpu-cooler-noctua-nh-d15",
     );
 
     expect(evaluateBuild(build, catalog).issues).toEqual([
@@ -818,28 +942,50 @@ describe("evaluateBuild", () => {
         severity: "error",
         message: "La GPU mide 304 mm y el gabinete soporta hasta 260 mm.",
       },
+      {
+        code: "cpu-cooler-case-height-exceeded",
+        severity: "error",
+        message: "El cooler mide 165 mm y el gabinete soporta hasta 150 mm.",
+      },
     ]);
   });
 
   it("reports issues in deterministic compatibility-check order", () => {
-    const build = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
-              "motherboard-asus-prime-b760-plus",
+    const build = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-amd-ryzen-5-7600"),
+                "motherboard-asus-prime-b760-plus",
+              ),
+              "gpu-asus-prime-rtx-5070-oc",
             ),
-            "gpu-asus-prime-rtx-5070-oc",
+            "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
           ),
-          "memory-corsair-vengeance-lpx-16gb-2x8-ddr4-3200",
+          "psu-aerocool-cylon-500w",
         ),
-        "psu-aerocool-cylon-500w",
+        "case-generic-compact-matx-260",
       ),
-      "case-generic-compact-matx-260",
+      "cpu-cooler-test-am4-tall",
     );
+    const testCatalog = {
+      ...catalog,
+      cpuCoolers: [
+        ...catalog.cpuCoolers,
+        {
+          id: "cpu-cooler-test-am4-tall",
+          kind: "cpuCooler",
+          brand: "Test",
+          model: "AM4 Tall",
+          supportedSockets: ["AM4"],
+          heightMm: 165,
+        } as const,
+      ],
+    };
 
-    expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
+    expect(evaluateBuild(build, testCatalog).issues.map((issue) => issue.code)).toEqual(
       [
         "cpu-motherboard-socket-mismatch",
         "memory-motherboard-type-mismatch",
@@ -847,26 +993,31 @@ describe("evaluateBuild", () => {
         "psu-missing-gpu-power-connectors",
         "motherboard-case-form-factor-mismatch",
         "gpu-case-length-exceeded",
+        "cpu-cooler-socket-mismatch",
+        "cpu-cooler-case-height-exceeded",
       ],
     );
   });
 
   it("updates power evaluation when GPU changes", () => {
-    const baseBuild = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
-              "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-intel-core-i5-14600k"),
+                "motherboard-asus-prime-b760-plus",
+              ),
+              "gpu-msi-rtx-4060-ventus-2x",
             ),
-            "gpu-msi-rtx-4060-ventus-2x",
+            "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
           ),
-          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+          "psu-aerocool-cylon-500w",
         ),
-        "psu-aerocool-cylon-500w",
+        "case-corsair-4000d-airflow",
       ),
-      "case-corsair-4000d-airflow",
+      "cpu-cooler-deepcool-ag400",
     );
     const withGpu = selectGpu(baseBuild, "gpu-asus-prime-rtx-5070-oc");
 
@@ -883,21 +1034,24 @@ describe("evaluateBuild", () => {
   });
 
   it("updates power evaluation when CPU changes", () => {
-    const baseBuild = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
-              "motherboard-asus-prime-b760-plus",
+    const baseBuild = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+                "motherboard-asus-prime-b760-plus",
+              ),
+              "gpu-msi-rtx-4060-ventus-2x",
             ),
-            "gpu-msi-rtx-4060-ventus-2x",
+            "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
           ),
-          "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+          "psu-generic-400w",
         ),
-        "psu-generic-400w",
+        "case-corsair-4000d-airflow",
       ),
-      "case-corsair-4000d-airflow",
+      "cpu-cooler-deepcool-ag400",
     );
     const withCpu = selectCpu(baseBuild, "cpu-intel-core-i5-14600k");
 
@@ -982,6 +1136,7 @@ describe("evaluateBuild", () => {
   it("does not mutate the catalog", () => {
     const before = {
       cpuIds: catalog.cpus.map((cpu) => cpu.id),
+      cpuCoolerIds: catalog.cpuCoolers.map((cpuCooler) => cpuCooler.id),
       motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
       gpuIds: catalog.gpus.map((gpu) => gpu.id),
       memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
@@ -992,6 +1147,7 @@ describe("evaluateBuild", () => {
 
     expect({
       cpuIds: catalog.cpus.map((cpu) => cpu.id),
+      cpuCoolerIds: catalog.cpuCoolers.map((cpuCooler) => cpuCooler.id),
       motherboardIds: catalog.motherboards.map((motherboard) => motherboard.id),
       gpuIds: catalog.gpus.map((gpu) => gpu.id),
       memoryKitIds: catalog.memoryKits.map((memoryKit) => memoryKit.id),
@@ -1073,6 +1229,18 @@ describe("evaluateBuild", () => {
     expect(clientSource).not.toContain("supportedMotherboardFormFactors.includes");
     expect(clientSource).not.toContain("lengthMm <=");
     expect(clientSource).not.toContain("maxGpuLengthMm >=");
+    expect(evaluateBuild).toBeTypeOf("function");
+  });
+
+  it("keeps CPU cooler compatibility centralized outside React", () => {
+    const clientSource = readFileSync(
+      join(process.cwd(), "src/app/_components/pc-builder-client.tsx"),
+      "utf8",
+    );
+
+    expect(clientSource).not.toContain("supportedSockets.includes");
+    expect(clientSource).not.toContain("heightMm <=");
+    expect(clientSource).not.toContain("maxCpuCoolerHeightMm >=");
     expect(evaluateBuild).toBeTypeOf("function");
   });
 });

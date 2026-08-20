@@ -5,6 +5,7 @@ import type { PcBuild } from "./types";
 export function createEmptyBuild(): PcBuild {
   return {
     cpuId: null,
+    cpuCoolerId: null,
     motherboardId: null,
     gpuId: null,
     memoryKitId: null,
@@ -15,6 +16,13 @@ export function createEmptyBuild(): PcBuild {
 
 export function selectCpu(build: PcBuild, cpuId: ComponentId): PcBuild {
   return { ...build, cpuId };
+}
+
+export function selectCpuCooler(
+  build: PcBuild,
+  cpuCoolerId: ComponentId,
+): PcBuild {
+  return { ...build, cpuCoolerId };
 }
 
 export function selectMotherboard(
@@ -45,6 +53,10 @@ export function selectCase(build: PcBuild, caseId: ComponentId): PcBuild {
 
 export function clearCpu(build: PcBuild): PcBuild {
   return { ...build, cpuId: null };
+}
+
+export function clearCpuCooler(build: PcBuild): PcBuild {
+  return { ...build, cpuCoolerId: null };
 }
 
 export function clearMotherboard(build: PcBuild): PcBuild {

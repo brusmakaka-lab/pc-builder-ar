@@ -24,6 +24,7 @@ const pcCase = {
   model: "Case",
   supportedMotherboardFormFactors: ["ATX", "MicroATX"],
   maxGpuLengthMm: 300,
+  maxCpuCoolerHeightMm: 160,
 } as const;
 
 describe("checkGpuCaseCompatibility", () => {

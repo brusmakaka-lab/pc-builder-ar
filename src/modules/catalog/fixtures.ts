@@ -1,4 +1,12 @@
-import type { Cpu, Gpu, MemoryKit, Motherboard, PcCase, Psu } from "./types";
+import type {
+  Cpu,
+  CpuCooler,
+  Gpu,
+  MemoryKit,
+  Motherboard,
+  PcCase,
+  Psu,
+} from "./types";
 
 export const cpus = [
   {
@@ -52,6 +60,33 @@ export const cpus = [
     tdpWatts: 125,
   },
 ] as const satisfies readonly Cpu[];
+
+export const cpuCoolers = [
+  {
+    id: "cpu-cooler-deepcool-ag400",
+    kind: "cpuCooler",
+    brand: "DeepCool",
+    model: "AG400",
+    supportedSockets: ["AM4", "AM5", "LGA1700"],
+    heightMm: 150,
+  },
+  {
+    id: "cpu-cooler-noctua-nh-d15",
+    kind: "cpuCooler",
+    brand: "Noctua",
+    model: "NH-D15",
+    supportedSockets: ["AM4", "AM5", "LGA1700"],
+    heightMm: 165,
+  },
+  {
+    id: "cpu-cooler-compact-am4-120",
+    kind: "cpuCooler",
+    brand: "Generic",
+    model: "Compact AM4 120",
+    supportedSockets: ["AM4"],
+    heightMm: 120,
+  },
+] as const satisfies readonly CpuCooler[];
 
 export const motherboards = [
   {
@@ -283,6 +318,7 @@ export const cases = [
     model: "4000D Airflow",
     supportedMotherboardFormFactors: ["ATX", "MicroATX"],
     maxGpuLengthMm: 360,
+    maxCpuCoolerHeightMm: 170,
   },
   {
     id: "case-cooler-master-n200",
@@ -291,6 +327,7 @@ export const cases = [
     model: "N200",
     supportedMotherboardFormFactors: ["MicroATX"],
     maxGpuLengthMm: 355,
+    maxCpuCoolerHeightMm: 160,
   },
   {
     id: "case-generic-compact-matx-260",
@@ -299,5 +336,6 @@ export const cases = [
     model: "Compact mATX 260",
     supportedMotherboardFormFactors: ["MicroATX"],
     maxGpuLengthMm: 260,
+    maxCpuCoolerHeightMm: 150,
   },
 ] as const satisfies readonly PcCase[];

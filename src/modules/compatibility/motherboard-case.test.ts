@@ -20,6 +20,7 @@ const pcCase = {
   brand: "Test",
   model: "Case",
   maxGpuLengthMm: 360,
+  maxCpuCoolerHeightMm: 160,
 } as const;
 
 describe("checkMotherboardCaseCompatibility", () => {

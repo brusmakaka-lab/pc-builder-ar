@@ -1,6 +1,7 @@
 import {
   getAllCpus,
   getAllCases,
+  getAllCpuCoolers,
   getAllGpus,
   getAllMemoryKits,
   getAllMotherboards,
@@ -11,6 +12,7 @@ import { PcBuilderClient } from "./_components/pc-builder-client";
 
 export default function Home() {
   const cpus = getAllCpus();
+  const cpuCoolers = getAllCpuCoolers();
   const motherboards = getAllMotherboards();
   const gpus = getAllGpus();
   const memoryKits = getAllMemoryKits();
@@ -30,6 +32,7 @@ export default function Home() {
 
       <PcBuilderClient
         cpus={cpus}
+        cpuCoolers={cpuCoolers}
         motherboards={motherboards}
         gpus={gpus}
         memoryKits={memoryKits}

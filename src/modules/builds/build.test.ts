@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clearCase,
   clearCpu,
+  clearCpuCooler,
   clearGpu,
   clearMemoryKit,
   clearMotherboard,
@@ -10,6 +11,7 @@ import {
   createEmptyBuild,
   selectCpu,
   selectCase,
+  selectCpuCooler,
   selectGpu,
   selectMemoryKit,
   selectMotherboard,
@@ -20,6 +22,7 @@ describe("PcBuild operations", () => {
   it("creates an empty build", () => {
     expect(createEmptyBuild()).toEqual({
       cpuId: null,
+      cpuCoolerId: null,
       motherboardId: null,
       gpuId: null,
       memoryKitId: null,
@@ -32,6 +35,7 @@ describe("PcBuild operations", () => {
     const build = createEmptyBuild();
 
     expect(build.cpuId).toBeNull();
+    expect(build.cpuCoolerId).toBeNull();
     expect(build.motherboardId).toBeNull();
     expect(build.gpuId).toBeNull();
     expect(build.memoryKitId).toBeNull();
@@ -48,6 +52,15 @@ describe("PcBuild operations", () => {
     expect(withCpu.cpuId).toBe("cpu-a");
     expect(withReplacement.cpuId).toBe("cpu-b");
     expect(withReplacement).not.toBe(withCpu);
+  });
+
+  it("selects and replaces a CPU cooler", () => {
+    const withCpuCooler = selectCpuCooler(createEmptyBuild(), "cooler-a");
+    const withReplacement = selectCpuCooler(withCpuCooler, "cooler-b");
+
+    expect(withCpuCooler.cpuCoolerId).toBe("cooler-a");
+    expect(withReplacement.cpuCoolerId).toBe("cooler-b");
+    expect(withReplacement).not.toBe(withCpuCooler);
   });
 
   it("selects a motherboard", () => {
@@ -89,21 +102,24 @@ describe("PcBuild operations", () => {
   });
 
   it("clears individual selections", () => {
-    const build = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-a"),
-              "board-a",
+    const build = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-a"),
+                "board-a",
+              ),
+              "gpu-a",
             ),
-            "gpu-a",
+            "memory-a",
           ),
-          "memory-a",
+          "psu-a",
         ),
-        "psu-a",
+        "case-a",
       ),
-      "case-a",
+      "cooler-a",
     );
 
     expect(clearCpu(build).cpuId).toBeNull();
@@ -112,28 +128,33 @@ describe("PcBuild operations", () => {
     expect(clearMemoryKit(build).memoryKitId).toBeNull();
     expect(clearPsu(build).psuId).toBeNull();
     expect(clearCase(build).caseId).toBeNull();
+    expect(clearCpuCooler(build).cpuCoolerId).toBeNull();
   });
 
   it("does not alter other positions when one position changes", () => {
-    const build = selectCase(
-      selectPsu(
-        selectMemoryKit(
-          selectGpu(
-            selectMotherboard(
-              selectCpu(createEmptyBuild(), "cpu-a"),
-              "board-a",
+    const build = selectCpuCooler(
+      selectCase(
+        selectPsu(
+          selectMemoryKit(
+            selectGpu(
+              selectMotherboard(
+                selectCpu(createEmptyBuild(), "cpu-a"),
+                "board-a",
+              ),
+              "gpu-a",
             ),
-            "gpu-a",
+            "memory-a",
           ),
-          "memory-a",
+          "psu-a",
         ),
-        "psu-a",
+        "case-a",
       ),
-      "case-a",
+      "cooler-a",
     );
 
     expect(selectCpu(build, "cpu-b")).toEqual({
       cpuId: "cpu-b",
+      cpuCoolerId: "cooler-a",
       motherboardId: "board-a",
       gpuId: "gpu-a",
       memoryKitId: "memory-a",
