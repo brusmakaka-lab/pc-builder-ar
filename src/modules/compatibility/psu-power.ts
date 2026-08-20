@@ -1,32 +1,60 @@
 import type { Cpu, Gpu, Psu } from "@/modules/catalog/types";
 
-export const PSU_POWER_HEADROOM_RATIO = 1.25;
+export const SYSTEM_BASE_POWER_WATTS = 100;
+export const PSU_HEADROOM_RATIO = 1.25;
+
+export type PsuPowerEstimate = {
+  cpuWatts: number;
+  gpuWatts: number;
+  systemBaseWatts: number;
+  estimatedComponentWatts: number;
+  estimatedLoadWatts: number;
+  headroomRatio: number;
+  requiredPsuWatts: number;
+};
 
 export type PsuPowerCompatibilityReason = {
   code: "INSUFFICIENT_WATTAGE";
   psuWattage: number;
-  estimatedLoadWatts: number;
-  requiredPsuWatts: number;
+  estimate: PsuPowerEstimate;
 };
 
 export type PsuPowerCompatibility =
   | {
       compatible: true;
       psuWattage: number;
-      estimatedLoadWatts: number;
-      requiredPsuWatts: number;
+      estimate: PsuPowerEstimate;
     }
   | {
       compatible: false;
       reason: PsuPowerCompatibilityReason;
     };
 
-export function estimateCpuGpuLoadWatts(cpu: Cpu, gpu: Gpu) {
+export function estimateComponentLoadWatts(cpu: Cpu, gpu: Gpu) {
   return cpu.tdpWatts + gpu.boardPowerWatts;
 }
 
+export function getEstimatedLoadWatts(estimatedComponentWatts: number) {
+  return estimatedComponentWatts + SYSTEM_BASE_POWER_WATTS;
+}
+
 export function getRequiredPsuWatts(estimatedLoadWatts: number) {
-  return Math.ceil(estimatedLoadWatts * PSU_POWER_HEADROOM_RATIO);
+  return Math.ceil(estimatedLoadWatts * PSU_HEADROOM_RATIO);
+}
+
+export function estimatePsuPower(cpu: Cpu, gpu: Gpu): PsuPowerEstimate {
+  const estimatedComponentWatts = estimateComponentLoadWatts(cpu, gpu);
+  const estimatedLoadWatts = getEstimatedLoadWatts(estimatedComponentWatts);
+
+  return {
+    cpuWatts: cpu.tdpWatts,
+    gpuWatts: gpu.boardPowerWatts,
+    systemBaseWatts: SYSTEM_BASE_POWER_WATTS,
+    estimatedComponentWatts,
+    estimatedLoadWatts,
+    headroomRatio: PSU_HEADROOM_RATIO,
+    requiredPsuWatts: getRequiredPsuWatts(estimatedLoadWatts),
+  };
 }
 
 export function checkPsuPowerCompatibility(
@@ -34,15 +62,13 @@ export function checkPsuPowerCompatibility(
   gpu: Gpu,
   psu: Psu,
 ): PsuPowerCompatibility {
-  const estimatedLoadWatts = estimateCpuGpuLoadWatts(cpu, gpu);
-  const requiredPsuWatts = getRequiredPsuWatts(estimatedLoadWatts);
+  const estimate = estimatePsuPower(cpu, gpu);
 
-  if (psu.wattage >= requiredPsuWatts) {
+  if (psu.wattage >= estimate.requiredPsuWatts) {
     return {
       compatible: true,
       psuWattage: psu.wattage,
-      estimatedLoadWatts,
-      requiredPsuWatts,
+      estimate,
     };
   }
 
@@ -51,8 +77,7 @@ export function checkPsuPowerCompatibility(
     reason: {
       code: "INSUFFICIENT_WATTAGE",
       psuWattage: psu.wattage,
-      estimatedLoadWatts,
-      requiredPsuWatts,
+      estimate,
     },
   };
 }

@@ -53,10 +53,21 @@ Si los tipos de memoria coinciden, el resultado es compatible. Si no coinciden, 
 PSU contra potencia estimada:
 
 ```text
-estimatedLoadWatts = cpu.tdpWatts + gpu.boardPowerWatts
-requiredPsuWatts = ceil(estimatedLoadWatts * 1.25)
+SYSTEM_BASE_POWER_WATTS = 100
+PSU_HEADROOM_RATIO = 1.25
+
+requiredPsuWatts = ceil(
+  (
+    cpu.tdpWatts +
+    gpu.boardPowerWatts +
+    SYSTEM_BASE_POWER_WATTS
+  )
+  * PSU_HEADROOM_RATIO
+)
 psu.wattage >= requiredPsuWatts
 ```
+
+`SYSTEM_BASE_POWER_WATTS` representa consumo no modelado de la build, no una verdad fisica por componente. CPU TDP y GPU board power son proxies simples para una estimacion conservadora y determinista.
 
 Si la potencia nominal de la PSU cubre la potencia requerida estimada, el resultado es compatible. Si no la cubre, el resultado es incompatible con un motivo tipado:
 
@@ -66,8 +77,10 @@ Si la potencia nominal de la PSU cubre la potencia requerida estimada, el result
   reason: {
     code: "INSUFFICIENT_WATTAGE",
     psuWattage: 400,
-    estimatedLoadWatts: 375,
-    requiredPsuWatts: 469
+    estimate: {
+      estimatedLoadWatts: 475,
+      requiredPsuWatts: 594
+    }
   }
 }
 ```

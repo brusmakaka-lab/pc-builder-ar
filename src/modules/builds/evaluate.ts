@@ -300,7 +300,7 @@ function getBuildIssues(
     issues.push({
       code: "psu-insufficient-wattage",
       severity: "error",
-      message: `La PSU entrega ${psuPowerCompatibility.reason.psuWattage} W y la build requiere al menos ${psuPowerCompatibility.reason.requiredPsuWatts} W estimados.`,
+      message: `La PSU entrega ${psuPowerCompatibility.reason.psuWattage} W y la build requiere al menos ${psuPowerCompatibility.reason.estimate.requiredPsuWatts} W estimados.`,
     });
   }
 
@@ -335,13 +335,13 @@ function getBuildPowerEvaluation(
 
   if (psuPowerCompatibility.compatible) {
     return {
-      estimatedLoadWatts: psuPowerCompatibility.estimatedLoadWatts,
-      requiredPsuWatts: psuPowerCompatibility.requiredPsuWatts,
+      estimatedLoadWatts: psuPowerCompatibility.estimate.estimatedLoadWatts,
+      requiredPsuWatts: psuPowerCompatibility.estimate.requiredPsuWatts,
     };
   }
 
   return {
-    estimatedLoadWatts: psuPowerCompatibility.reason.estimatedLoadWatts,
-    requiredPsuWatts: psuPowerCompatibility.reason.requiredPsuWatts,
+    estimatedLoadWatts: psuPowerCompatibility.reason.estimate.estimatedLoadWatts,
+    requiredPsuWatts: psuPowerCompatibility.reason.estimate.requiredPsuWatts,
   };
 }

@@ -52,19 +52,21 @@ La precedencia del estado global es:
 - `unknown` si no hay fallas pero falta algun componente necesario para completar las reglas conocidas.
 - `compatible` si todas las reglas conocidas pueden evaluarse y pasan.
 
-La regla de potencia usa los watts ya modelados: `cpu.tdpWatts` y `gpu.boardPowerWatts`. La carga estimada es:
+La regla de potencia usa los watts ya modelados: `cpu.tdpWatts` y `gpu.boardPowerWatts`, mas una constante conservadora para el consumo no modelado del sistema:
 
 ```text
-estimatedLoadWatts = cpu.tdpWatts + gpu.boardPowerWatts
+SYSTEM_BASE_POWER_WATTS = 100
+estimatedLoadWatts = cpu.tdpWatts + gpu.boardPowerWatts + SYSTEM_BASE_POWER_WATTS
 ```
 
 La potencia requerida aplica un margen simple del 25%:
 
 ```text
-requiredPsuWatts = ceil(estimatedLoadWatts * 1.25)
+PSU_HEADROOM_RATIO = 1.25
+requiredPsuWatts = ceil(estimatedLoadWatts * PSU_HEADROOM_RATIO)
 ```
 
-Esta es una aproximacion de dominio para screening inicial: combina TDP de CPU y board power de GPU, no una medicion electrica real ni una recomendacion final de compra. Conectores, calidad de PSU, certificaciones, eficiencia, transients y estandares ATX quedan fuera de scope.
+Esta es una aproximacion de dominio para screening inicial: combina TDP de CPU y board power de GPU como proxies, agrega 100 W para motherboard, RAM, almacenamiento, ventiladores y otros consumos no modelados, y no pretende ser una medicion electrica real. El margen conservador evita aceptar fuentes artificialmente justas para decisiones de compra iniciales. Calidad de PSU, certificaciones, eficiencia, transients y estandares ATX quedan fuera de scope.
 
 El check de conectores GPU/PSU es independiente del check de potencia. Una PSU puede fallar potencia, conectores o ambos, y cada incompatibilidad se reporta como issue separado.
 

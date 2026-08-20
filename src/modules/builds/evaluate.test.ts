@@ -242,8 +242,15 @@ describe("evaluatePsuPowerCompatibility", () => {
     expect(evaluatePsuPowerCompatibility(build, catalog)).toEqual({
       compatible: true,
       psuWattage: 650,
-      estimatedLoadWatts: 315,
-      requiredPsuWatts: 394,
+      estimate: {
+        cpuWatts: 65,
+        gpuWatts: 250,
+        systemBaseWatts: 100,
+        estimatedComponentWatts: 315,
+        estimatedLoadWatts: 415,
+        headroomRatio: 1.25,
+        requiredPsuWatts: 519,
+      },
     });
   });
 
@@ -275,8 +282,15 @@ describe("evaluatePsuPowerCompatibility", () => {
       reason: {
         code: "INSUFFICIENT_WATTAGE",
         psuWattage: 400,
-        estimatedLoadWatts: 375,
-        requiredPsuWatts: 469,
+        estimate: {
+          cpuWatts: 125,
+          gpuWatts: 250,
+          systemBaseWatts: 100,
+          estimatedComponentWatts: 375,
+          estimatedLoadWatts: 475,
+          headroomRatio: 1.25,
+          requiredPsuWatts: 594,
+        },
       },
     });
   });
@@ -341,7 +355,7 @@ describe("evaluateGpuPsuConnectorCompatibility", () => {
   it("returns compatible for a GPU without dedicated power connectors", () => {
     const build = selectPsu(
       selectGpu(createEmptyBuild(), "gpu-msi-rtx-4060-ventus-2x"),
-      "psu-generic-400w",
+      "psu-aerocool-cylon-500w",
     );
 
     expect(evaluateGpuPsuConnectorCompatibility(build, catalog)).toEqual({
@@ -551,8 +565,8 @@ describe("evaluateBuild", () => {
       missingComponents: [],
       issues: [],
       power: {
-        estimatedLoadWatts: 315,
-        requiredPsuWatts: 394,
+        estimatedLoadWatts: 415,
+        requiredPsuWatts: 519,
       },
     });
   });
@@ -668,7 +682,7 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-generic-400w",
+      "psu-aerocool-cylon-500w",
     );
 
     expect(evaluateBuild(build, catalog).issues).toEqual([
@@ -685,7 +699,7 @@ describe("evaluateBuild", () => {
       {
         code: "psu-insufficient-wattage",
         severity: "error",
-        message: "La PSU entrega 400 W y la build requiere al menos 469 W estimados.",
+        message: "La PSU entrega 500 W y la build requiere al menos 594 W estimados.",
       },
       {
         code: "psu-missing-gpu-power-connectors",
@@ -708,7 +722,7 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-generic-400w",
+      "psu-aerocool-cylon-500w",
     );
 
     expect(evaluateBuild(build, catalog).issues.map((issue) => issue.code)).toEqual(
@@ -733,19 +747,19 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-generic-400w",
+      "psu-aerocool-cylon-500w",
     );
     const withGpu = selectGpu(baseBuild, "gpu-asus-prime-rtx-5070-oc");
 
     expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
     expect(evaluateBuild(baseBuild, catalog).power).toEqual({
-      estimatedLoadWatts: 240,
-      requiredPsuWatts: 300,
+      estimatedLoadWatts: 340,
+      requiredPsuWatts: 425,
     });
     expect(evaluateBuild(withGpu, catalog).compatibility).toBe("incompatible");
     expect(evaluateBuild(withGpu, catalog).power).toEqual({
-      estimatedLoadWatts: 375,
-      requiredPsuWatts: 469,
+      estimatedLoadWatts: 475,
+      requiredPsuWatts: 594,
     });
   });
 
@@ -761,26 +775,68 @@ describe("evaluateBuild", () => {
         ),
         "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
       ),
-      "psu-test-250w",
+      "psu-generic-400w",
     );
     const withCpu = selectCpu(baseBuild, "cpu-intel-core-i5-14600k");
-    const testCatalog = {
-      ...catalog,
-      psus: [
-        ...catalog.psus,
-        {
-          id: "psu-test-250w",
-          kind: "psu",
-          brand: "Test",
-          model: "Small 250W",
-          wattage: 250,
-          gpuPowerConnectors: [],
-        } as const,
-      ],
-    };
 
-    expect(evaluateBuild(baseBuild, testCatalog).compatibility).toBe("compatible");
-    expect(evaluateBuild(withCpu, testCatalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(baseBuild, catalog).compatibility).toBe("compatible");
+    expect(evaluateBuild(baseBuild, catalog).power).toEqual({
+      estimatedLoadWatts: 280,
+      requiredPsuWatts: 350,
+    });
+    expect(evaluateBuild(withCpu, catalog).compatibility).toBe("incompatible");
+    expect(evaluateBuild(withCpu, catalog).power).toEqual({
+      estimatedLoadWatts: 340,
+      requiredPsuWatts: 425,
+    });
+  });
+
+  it("does not change power evaluation when motherboard changes", () => {
+    const baseBuild = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+            "motherboard-asus-prime-b760-plus",
+          ),
+          "gpu-msi-rtx-4060-ventus-2x",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      ),
+      "psu-generic-400w",
+    );
+    const withMotherboard = selectMotherboard(
+      baseBuild,
+      "motherboard-msi-pro-z790-a-wifi-ddr4",
+    );
+
+    expect(evaluateBuild(withMotherboard, catalog).power).toEqual(
+      evaluateBuild(baseBuild, catalog).power,
+    );
+  });
+
+  it("does not change power evaluation when RAM changes", () => {
+    const baseBuild = selectPsu(
+      selectMemoryKit(
+        selectGpu(
+          selectMotherboard(
+            selectCpu(createEmptyBuild(), "cpu-intel-core-i5-12400f"),
+            "motherboard-asus-prime-b760-plus",
+          ),
+          "gpu-msi-rtx-4060-ventus-2x",
+        ),
+        "memory-gskill-ripjaws-s5-32gb-2x16-ddr5-6000",
+      ),
+      "psu-generic-400w",
+    );
+    const withMemory = selectMemoryKit(
+      baseBuild,
+      "memory-crucial-pro-32gb-2x16-ddr5-5600",
+    );
+
+    expect(evaluateBuild(withMemory, catalog).power).toEqual(
+      evaluateBuild(baseBuild, catalog).power,
+    );
   });
 
   it("does not mutate the original build", () => {
